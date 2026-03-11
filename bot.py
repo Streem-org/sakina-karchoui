@@ -9,7 +9,11 @@ from datetime import timedelta
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+from discord.ui import View
 import pytz
+import psutil
+
+bot_start_time = datetime.datetime.utcnow()
 
 # ---------------- ENV ---------------- #
 
@@ -82,19 +86,7 @@ async def on_message(message):
 
     weekly_messages[message.author.id]+=1
 
-    # AFK REMOVE
-    if message.author.id in afk_users:
-        del afk_users[message.author.id]
-        await message.channel.send(
-            f"{message.author.mention} is no longer AFK."
-        )
 
-    # AFK MENTION
-    for user in message.mentions:
-        if user.id in afk_users:
-            await message.channel.send(
-                f"{user.display_name} is AFK: {afk_users[user.id]}"
-            )
 
     # COUNTING
     if message.channel.id == COUNTING_CHANNEL:
@@ -156,26 +148,109 @@ async def help(ctx):
     await ctx.send(embed=embed)
 
 # ---------------- AFK ---------------- #
+import discord
+from discord.ext import commands
+from discord.ui import View
+
+afk_users = {}
+afk_pings = {}
+
+class AFKReturnView(View):
+    def __init__(self, user_id):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+
+    @discord.ui.button(label="Show Pings", style=discord.ButtonStyle.green)
+    async def show_pings(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        pings = afk_pings.get(self.user_id, [])
+
+        if not pings:
+            await interaction.response.send_message(
+                "No one pinged you while you were AFK.",
+                ephemeral=True
+            )
+        else:
+            msg = "\n".join(pings[:10])
+            await interaction.response.send_message(
+                f"People who pinged you:\n{msg}",
+                ephemeral=True
+            )
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.red)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+
 
 @bot.command()
 async def afk(ctx, *, reason="AFK"):
 
     afk_users[ctx.author.id] = reason
+    afk_pings[ctx.author.id] = []
 
     embed = discord.Embed(
         title="You're now AFK!",
+        description=f"Reason: **{reason}**",
         color=discord.Color.blurple()
     )
 
-    embed.add_field(
-        name="Message",
-        value=f"• {reason}",
-        inline=False
-    )
-
-    embed.set_footer(text=f"{ctx.author}", icon_url=ctx.author.avatar.url)
+    embed.set_footer(text=ctx.author.name, icon_url=ctx.author.avatar.url)
 
     await ctx.send(embed=embed)
+
+
+@bot.event
+async def on_message(message):
+
+    if message.author.bot:
+        return
+
+    # Remove AFK when user talks
+    if message.author.id in afk_users:
+
+        del afk_users[message.author.id]
+
+        embed = discord.Embed(
+            description="**Your AFK has been removed!**",
+            color=discord.Color.red()
+        )
+
+        view = AFKReturnView(message.author.id)
+
+        await message.channel.send(
+            content=message.author.mention,
+            embed=embed,
+            view=view
+        )
+
+    # Detect mentions of AFK users
+    for user in message.mentions:
+
+        if user.id in afk_users:
+
+            reason = afk_users[user.id]
+
+            if user.id not in afk_pings:
+                afk_pings[user.id] = []
+
+            afk_pings[user.id].append(
+                f"{message.author} in {message.channel.mention}"
+            )
+
+            embed = discord.Embed(
+                description=f"{user.mention} is currently **AFK**",
+                color=discord.Color.orange()
+            )
+
+            embed.add_field(
+                name="Reason",
+                value=reason,
+                inline=False
+            )
+
+            await message.channel.send(embed=embed)
+
+    await bot.process_commands(message)
 
 # ---------------- TIME ---------------- #
 
@@ -221,13 +296,47 @@ async def timeremove(ctx):
 
 # ---------------- UTILITY ---------------- #
 
+
+
 @bot.command()
 async def uptime(ctx):
 
-    seconds=int(time.time()-start_time)
-    uptime=str(timedelta(seconds=seconds))
+    now = datetime.datetime.utcnow()
 
-    await ctx.send(f"Bot uptime: **{uptime}**")
+    # Bot uptime
+    bot_uptime = now - bot_start_time
+    bot_days = bot_uptime.days
+    bot_hours, remainder = divmod(bot_uptime.seconds, 3600)
+    bot_minutes, bot_seconds = divmod(remainder, 60)
+
+    # System uptime
+    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
+    system_uptime = now - boot_time
+    sys_days = system_uptime.days
+    sys_hours, remainder = divmod(system_uptime.seconds, 3600)
+    sys_minutes, sys_seconds = divmod(remainder, 60)
+
+    embed = discord.Embed(
+        title="Uptime Information",
+        color=discord.Color.blurple()
+    )
+
+    embed.description = (
+        f"I was last rebooted `{bot_days} days ago`\n\n"
+        f"**Bot Uptime**\n"
+        f"{bot_days} days, {bot_hours} hours, {bot_minutes} minutes, {bot_seconds} seconds\n"
+        f"• {bot_start_time.strftime('%d %B %Y %I:%M %p')}\n\n"
+        f"**System Uptime**\n"
+        f"{sys_days} days, {sys_hours} hours, {sys_minutes} minutes, {sys_seconds} seconds\n"
+        f"• {boot_time.strftime('%d %B %Y %I:%M %p')}"
+    )
+
+    embed.set_footer(
+        text=f"Requested by {ctx.author}",
+        icon_url=ctx.author.avatar.url
+    )
+
+    await ctx.send(embed=embed)
 
 @bot.command()
 async def avatar(ctx,member:discord.Member=None):
