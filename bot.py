@@ -37,7 +37,7 @@ duos = {}
 eightball_responses = [
 "Yes","No","Ask again later",
 "Chances of you getting with her","Chances similar to Arsenal bottling",
-"Chances of streem marrying his hgs","Otis Khan has kidnapped the bot"
+"Chances of streem marrying his hgs","Otis Khan has kidnapped the bot", "I forgot the question"
 ]
 
 # ---------------- BOT ---------------- #
@@ -163,9 +163,17 @@ async def afk(ctx, *, reason="AFK"):
     afk_users[ctx.author.id] = reason
 
     embed = discord.Embed(
-        description=f"{ctx.author.mention} is now AFK\nReason: **{reason}**",
+        title="You're now AFK!",
         color=discord.Color.blurple()
     )
+
+    embed.add_field(
+        name="Message",
+        value=f"• {reason}",
+        inline=False
+    )
+
+    embed.set_footer(text=f"{ctx.author}", icon_url=ctx.author.avatar.url)
 
     await ctx.send(embed=embed)
 
@@ -238,11 +246,30 @@ async def avatar(ctx,member:discord.Member=None):
 # ---------------- FUN ---------------- #
 
 @bot.command(name="8ball")
-async def eightball(ctx,*,question):
+async def eightball(ctx, *, question):
 
-    reply=random.choice(eightball_responses)
+    reply = random.choice(eightball_responses)
 
-    await ctx.send(f"🎱 {reply}")
+    embed = discord.Embed(
+        title="Magic 8ball",
+        color=discord.Color.blurple()
+    )
+
+    embed.add_field(
+        name="Question",
+        value=question,
+        inline=False
+    )
+
+    embed.add_field(
+        name="Answer",
+        value=reply,
+        inline=False
+    )
+
+    embed.set_thumbnail(url="https://upload.wikimedia.org/wikipedia/commons/e/eb/Magic_eight_ball.png")
+
+    await ctx.send(embed=embed)
 
 # ---------------- EVIDENCE ---------------- #
 
