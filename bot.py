@@ -5,6 +5,7 @@ import datetime
 from collections import defaultdict
 import psutil
 import time
+from datetime import timedelta
 
 import discord
 from discord.ext import commands, tasks
@@ -14,6 +15,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
+start_time = time.time()
 
 COUNTING_CHANNEL = 1477918309696667800
 
@@ -264,39 +266,54 @@ async def wk(ctx, sub=None, member: discord.Member=None):
         await ctx.send(embed=embed)
 
 # ---------------- UPTIME ---------------- #
-
 @bot.command()
 async def uptime(ctx):
 
-    now = datetime.datetime.utcnow()
+    # Bot uptime
+    bot_seconds = int(time.time() - start_time)
+    bot_uptime = str(timedelta(seconds=bot_seconds))
 
-    bot_uptime = now - bot_start_time
-    bot_days = bot_uptime.days
-    bot_hours,remainder = divmod(bot_uptime.seconds,3600)
-    bot_minutes,bot_seconds = divmod(remainder,60)
+    bot_started = datetime.datetime.fromtimestamp(
+        start_time
+    ).strftime("%d %B %Y %I:%M %p")
 
-    system_uptime_seconds = int(time.time() - psutil.boot_time())
-    sys_days,remainder = divmod(system_uptime_seconds,86400)
-    sys_hours,remainder = divmod(remainder,3600)
-    sys_minutes,sys_seconds = divmod(remainder,60)
+    # System uptime
+    system_seconds = int(time.time() - psutil.boot_time())
+    system_uptime = str(timedelta(seconds=system_seconds))
+
+    system_started = datetime.datetime.fromtimestamp(
+        psutil.boot_time()
+    ).strftime("%d %B %Y %I:%M %p")
 
     embed = discord.Embed(
         title="Uptime Information",
-        color=discord.Color.blurple()
+        color=discord.Color.dark_theme()
+    )
+
+    embed.add_field(
+        name="I was last rebooted",
+        value="`0 days ago`",
+        inline=False
     )
 
     embed.add_field(
         name="Bot Uptime",
-        value=f"{bot_days}d {bot_hours}h {bot_minutes}m {bot_seconds}s"
+        value=f"{bot_uptime}\n• {bot_started}",
+        inline=False
     )
 
     embed.add_field(
         name="System Uptime",
-        value=f"{sys_days}d {sys_hours}h {sys_minutes}m {sys_seconds}s"
+        value=f"{system_uptime}\n• {system_started}",
+        inline=False
+    )
+
+    embed.set_footer(
+        text=f"Requested by {ctx.author}",
+        icon_url=ctx.author.display_avatar.url
     )
 
     await ctx.send(embed=embed)
-
 # ---------------- AVATAR ---------------- #
 
 @bot.command()
