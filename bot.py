@@ -28,6 +28,7 @@ TOKEN = os.getenv("TOKEN")
 CREATOR_ID = 1378768035187527795
 COUNTING_CHANNEL = 1477918309696667800
 STAFF_EVIDENCE_CHANNEL = 1481206250623598725
+ROLEDROP_USERS = 1378768035187527795, 1214001826127421440
 
 TIME_FILE = "times.json"
 
@@ -565,6 +566,52 @@ async def ship(ctx, member: discord.Member = None):
     )
 
     await ctx.send(embed=embed)
+
+    # ---------------- ROLE DROP ---------------- #
+
+@bot.hybrid_command()
+async def roledrop(ctx, role: discord.Role):
+
+    if ctx.author.id not in ROLEDROP_USERS:
+        await ctx.send("You cannot start a role drop.")
+        return
+
+    embed = discord.Embed(
+        title="Role Drop",
+        description=f"First person to send **any message** wins {role.mention}!",
+        color=discord.Color.gold()
+    )
+
+    embed.set_footer(
+        text=ctx.guild.name,
+        icon_url=ctx.guild.icon.url if ctx.guild.icon else None
+    )
+
+    await ctx.send("@everyone")
+    await ctx.send(embed=embed)
+
+    def check(m):
+        return (
+            m.channel == ctx.channel
+            and not m.author.bot
+        )
+
+    try:
+        msg = await bot.wait_for("message", timeout=30, check=check)
+
+        await msg.author.add_roles(role)
+
+        win = discord.Embed(
+            description=f"{msg.author.mention} won **{role.name}**!",
+            color=discord.Color.green()
+        )
+
+        win.set_footer(text=ctx.guild.name)
+
+        await ctx.send(embed=win)
+
+    except:
+        await ctx.send("No one claimed the role in time.")
 
 # ---------------- RUN ---------------- #
 
