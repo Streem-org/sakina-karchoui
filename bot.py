@@ -348,23 +348,41 @@ async def eightball(ctx, *, question):
     await ctx.send(embed=embed)
 
 # ---------------- SHIP ---------------- #
-
 @bot.command()
-async def ship(ctx, member: discord.Member):
+async def ship(ctx, user1: discord.Member, user2: discord.Member):
 
-    percent = random.randint(0,100)
+    percent = random.randint(0, 100)
 
-    filled = int(percent/10)
-    bar = "█"*filled + "░"*(10-filled)
+    # ship name
+    name1 = user1.display_name[:len(user1.display_name)//2]
+    name2 = user2.display_name[len(user2.display_name)//2:]
+    shipname = name1 + name2
+
+    # compatibility bar
+    filled = int(percent / 5)
+    bar = "█" * filled + " " * (20 - filled)
 
     embed = discord.Embed(
-        title=f"{ctx.author.name} ❤️ {member.name}",
-        description=f"`{bar}` {percent}%",
-        color=discord.Color.blurple()
+        title=shipname,
+        description=f"```{bar} {percent}%```",
+        color=discord.Color.pink()
+    )
+
+    embed.add_field(
+        name=" ",
+        value=f"{user1.mention} ❤️ {user2.mention}",
+        inline=False
+    )
+
+    embed.set_thumbnail(url=user1.display_avatar.url)
+    embed.set_image(url=user2.display_avatar.url)
+
+    embed.set_footer(
+        text=f"Shipped by {ctx.author}",
+        icon_url=ctx.author.display_avatar.url
     )
 
     await ctx.send(embed=embed)
-
 # ---------------- DUO SYSTEM ---------------- #
 
 @bot.command()
