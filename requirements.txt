@@ -4,5 +4,3 @@ pytz
 aiohttp
 psutil
 pillow
-asyncio
-SQLite

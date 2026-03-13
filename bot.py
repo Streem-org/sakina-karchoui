@@ -82,7 +82,7 @@ bot = commands.Bot(
 async def on_ready():
     await bot.change_presence(
         status=discord.Status.dnd,
-        activity=discord.Game(name="Jarvis protocols")
+        activity=discord.Game(name="Training again")
     )
 
     if not weekly_reset.is_running():
