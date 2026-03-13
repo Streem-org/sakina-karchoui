@@ -469,6 +469,92 @@ async def unmatch(ctx):
 
     await ctx.send("💔 Duo removed.")
 
+# ---------------- ROLE DROP SYSTEM ---------------- #
+
+import json
+import os
+import discord
+from discord.ext import commands
+
+ROLEDROP_FILE = "roledrop_winners.json"
+EXECUTOR_ROLE_ID = 1378768035187527795, 1214001826127421440
+MESSI_ROLE_ID = 1476264072809943091
+CRISTIANO_ROLE_ID = 1476262979010957414
+OWNER_FAVOURITE_ID = 1476260723297489019
+ALLOWED_DROP_ROLES = [MESSI_ROLE_ID, CRISTIANO_ROLE_ID]
+
+# create storage file
+if not os.path.exists(ROLEDROP_FILE):
+    with open(ROLEDROP_FILE, "w") as f:
+        json.dump({}, f)
+
+def load_roledrop():
+    with open(ROLEDROP_FILE, "r") as f:
+        return json.load(f)
+
+def save_roledrop(data):
+    with open(ROLEDROP_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+
+@bot.hybrid_command()
+async def roledrop(ctx, role: discord.Role):
+
+    # check executor permission
+    if EXECUTOR_ROLE_ID not in [r.id for r in ctx.author.roles]:
+        await ctx.send("❌ You cannot execute this command.")
+        return
+
+    # only allow specific roles to be dropped
+    if role.id not in ALLOWED_DROP_ROLES:
+        await ctx.send("❌ You can only drop the Messi or Cristiano roles.")
+        return
+
+    winners = load_roledrop()
+
+    embed = discord.Embed(
+        title="🎉 Role Drop",
+        description=f"Reply to this message to win {role.mention}!",
+        color=discord.Color.gold()
+    )
+
+    drop_message = await ctx.send(embed=embed)
+
+    def check(m):
+        return (
+            m.channel == ctx.channel
+            and m.reference
+            and m.reference.message_id == drop_message.id
+            and not m.author.bot
+        )
+
+    try:
+        msg = await bot.wait_for("message", timeout=30, check=check)
+
+        role_id = str(role.id)
+        user_id = str(msg.author.id)
+
+        winners.setdefault(role_id, [])
+
+        # prevent duplicate wins
+        if user_id in winners[role_id]:
+            await ctx.send(f"{msg.author.mention} already won **{role.name}** before.")
+            return
+
+        await msg.author.add_roles(role)
+
+        winners[role_id].append(user_id)
+        save_roledrop(winners)
+
+        win = discord.Embed(
+            description=f"🏆 {msg.author.mention} won **{role.name}**!",
+            color=discord.Color.green()
+        )
+
+        await ctx.send(embed=win)
+
+    except:
+        await ctx.send("⏱️ No one claimed the role in time.")
 # ---------------- RUN ---------------- #
 
 bot.run(TOKEN)
