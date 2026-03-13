@@ -7,8 +7,6 @@ import psutil
 import time
 from datetime import timedelta
 import asyncio
-import sqlite3
-
 import discord
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
@@ -21,7 +19,6 @@ TOKEN = os.getenv("TOKEN")
 start_time = time.time()
 
 COUNTING_CHANNEL = 1477918309696667800
-
 TIME_FILE = "times.json"
 WEEKLY_FILE = "weekly.json"
 DUOS_FILE = "duos.json"
@@ -58,13 +55,13 @@ count_number = 0
 last_counter = None
 
 eightball_responses = [
-"Yes",
-"No",
-"Ask again later",
-"It is certain",
-"Reply hazy, try later",
-"Not in the mood shut the fuck up",
-"I forgot the question"
+    "Yes",
+    "No",
+    "Ask again later",
+    "It is certain",
+    "Reply hazy, try later",
+    "Not in the mood shut the fuck up",
+    "I forgot the question"
 ]
 
 # ---------------- BOT ---------------- #
@@ -79,46 +76,10 @@ bot = commands.Bot(
     help_command=None
 )
 
-# ---------------- SQLITE ECONOMY ---------------- #
-
-DEV_ID = 1378768035187527795
-
-conn = sqlite3.connect("economy.db")
-cursor = conn.cursor()
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS economy(
-    user_id INTEGER PRIMARY KEY,
-    wallet INTEGER,
-    bank INTEGER,
-    wins INTEGER,
-    losses INTEGER
-)
-""")
-
-conn.commit()
-
-def create_account(user):
-
-    cursor.execute(
-        "SELECT * FROM economy WHERE user_id=?",
-        (user.id,)
-    )
-
-    if cursor.fetchone() is None:
-
-        cursor.execute(
-            "INSERT INTO economy VALUES(?,?,?,?,?)",
-            (user.id,1000,0,0,0)
-        )
-
-        conn.commit()
-
 # ---------------- READY ---------------- #
 
 @bot.event
 async def on_ready():
-
     await bot.change_presence(
         status=discord.Status.dnd,
         activity=discord.Game(name="Jarvis protocols")
@@ -133,9 +94,9 @@ async def on_ready():
 
 @tasks.loop(hours=168)
 async def weekly_reset():
-
     global weekly_data
     weekly_data = {}
+    weekly_messages.clear()
     safe_save(WEEKLY_FILE, weekly_data)
 
 # ---------------- MESSAGE EVENT ---------------- #
@@ -148,14 +109,11 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    await bot.process_commands(message)
-
     weekly_messages[message.author.id] += 1
     weekly_data[str(message.author.id)] = weekly_messages[message.author.id]
     safe_save(WEEKLY_FILE, weekly_data)
 
     if message.author.id in afk_users:
-
         del afk_users[message.author.id]
 
         embed = discord.Embed(
@@ -171,7 +129,6 @@ async def on_message(message):
     for user in message.mentions:
 
         if user.id in afk_users:
-
             reason = afk_users[user.id]
 
             embed = discord.Embed(
@@ -187,6 +144,7 @@ async def on_message(message):
 
         try:
             number = int(message.content)
+
         except:
             await message.delete()
             return
@@ -202,6 +160,8 @@ async def on_message(message):
         count_number = number
         last_counter = message.author.id
 
+    await bot.process_commands(message)
+
 # ---------------- HELP ---------------- #
 
 @bot.command()
@@ -209,235 +169,395 @@ async def help(ctx):
 
     embed = discord.Embed(
         title="Jarvis Command Panel",
-        description="Prefix: `.`",
+        description="Prefix: .",
         color=discord.Color.blurple()
     )
 
     embed.add_field(
         name="Utility",
-        value="`.avatar`\n`.uptime`\n`.afk`",
+        value=".avatar\n.uptime\n.afk",
         inline=False
     )
 
     embed.add_field(
         name="Weekly",
-        value="`.wk`\n`.wk p @user`",
+        value=".wk\n.wk p @user",
         inline=False
     )
 
     embed.add_field(
         name="Fun",
-        value="`.8ball`\n`.ship`\n`.match`\n`.duo`\n`.unmatch`",
+        value=".8ball\n.ship\n.match\n.duo\n.unmatch",
+        inline=False
+    )
+
+    embed.set_footer(
+        text=f"Requested by {ctx.author}",
+        icon_url=ctx.author.display_avatar.url
+    )
+
+    await ctx.send(embed=embed)
+
+# ---------------- AFK ---------------- #
+
+@bot.command()
+async def afk(ctx, *, reason="AFK"):
+
+    afk_users[ctx.author.id] = reason
+
+    embed = discord.Embed(
+        description=f"{ctx.author.mention} is now AFK.",
+        color=discord.Color.orange()
+    )
+
+    embed.add_field(name="Reason", value=reason)
+
+    await ctx.send(embed=embed)
+
+# ---------------- WEEKLY ---------------- #
+
+@bot.command()
+async def wk(ctx, sub=None, member: discord.Member=None):
+
+    if sub is None:
+
+        if not weekly_data:
+            await ctx.send("No weekly data yet.")
+            return
+
+        sorted_data = sorted(
+            weekly_data.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+        desc = ""
+
+        for i, (user_id, points) in enumerate(sorted_data[:10], start=1):
+
+            user = ctx.guild.get_member(int(user_id))
+
+            if user:
+                desc += f"**{i}. {user.name}** — {points} messages\n"
+
+        embed = discord.Embed(
+            title="Weekly Leaderboard",
+            description=desc,
+            color=discord.Color.gold()
+        )
+
+        await ctx.send(embed=embed)
+
+    elif sub == "p":
+
+        member = member or ctx.author
+
+        points = weekly_data.get(str(member.id), 0)
+
+        embed = discord.Embed(
+            title="Weekly Stats",
+            description=f"{member.mention} sent **{points} messages** this week.",
+            color=discord.Color.blurple()
+        )
+
+        await ctx.send(embed=embed)
+
+# ---------------- UPTIME ---------------- #
+
+@bot.command()
+async def uptime(ctx):
+
+    bot_seconds = int(time.time() - start_time)
+    bot_uptime = str(timedelta(seconds=bot_seconds))
+
+    bot_started = datetime.datetime.fromtimestamp(
+        start_time
+    ).strftime("%d %B %Y %I:%M %p")
+
+    system_seconds = int(time.time() - psutil.boot_time())
+    system_uptime = str(timedelta(seconds=system_seconds))
+
+    system_started = datetime.datetime.fromtimestamp(
+        psutil.boot_time()
+    ).strftime("%d %B %Y %I:%M %p")
+
+    embed = discord.Embed(
+        title="Uptime Information",
+        color=discord.Color.dark_theme()
+    )
+
+    embed.add_field(
+        name="I was last rebooted",
+        value="0 days ago",
         inline=False
     )
 
     embed.add_field(
-        name="Economy",
-        value="`.balance`\n`.deposit`\n`.withdraw`\n`.give`\n`.claim`\n`.roulette`",
+        name="Bot Uptime",
+        value=f"{bot_uptime}\n• {bot_started}",
+        inline=False
+    )
+
+    embed.add_field(
+        name="System Uptime",
+        value=f"{system_uptime}\n• {system_started}",
+        inline=False
+    )
+
+    embed.set_footer(
+        text=f"Requested by {ctx.author}",
+        icon_url=ctx.author.display_avatar.url
+    )
+
+    await ctx.send(embed=embed)
+
+# ---------------- AVATAR ---------------- #
+
+@bot.command()
+async def avatar(ctx, member: discord.Member=None):
+
+    member = member or ctx.author
+
+    embed = discord.Embed(
+        title=f"{member.name}'s Avatar",
+        color=discord.Color.blurple()
+    )
+
+    embed.set_image(url=member.display_avatar.url)
+
+    await ctx.send(embed=embed)
+
+# ---------------- 8BALL ---------------- #
+
+@bot.command(name="8ball")
+async def eightball(ctx, *, question):
+
+    reply = random.choice(eightball_responses)
+
+    if "are u gay" in question.lower() or "are you gay" in question.lower():
+        reply = "I may or may not be gay, but you seem to be."
+
+    embed = discord.Embed(title="Magic 8ball")
+
+    embed.add_field(name="Question", value=question, inline=False)
+    embed.add_field(name="Answer", value=reply, inline=False)
+
+    await ctx.send(embed=embed)
+
+# ---------------- SHIP ---------------- #
+
+@bot.command()
+async def ship(ctx, user1: discord.Member, user2: discord.Member):
+
+    percent = random.randint(0, 100)
+
+    name1 = user1.display_name[:len(user1.display_name)//2]
+    name2 = user2.display_name[len(user2.display_name)//2:]
+
+    shipname = name1 + name2
+
+    filled = int(percent / 5)
+    bar = "█" * filled + " " * (20 - filled)
+
+    embed = discord.Embed(
+        title=shipname,
+        description=f"{bar} {percent}%",
+        color=discord.Color.pink()
+    )
+
+    embed.add_field(
+        name=" ",
+        value=f"{user1.mention} ❤️ {user2.mention}",
+        inline=False
+    )
+
+    embed.set_thumbnail(url=user1.display_avatar.url)
+    embed.set_image(url=user2.display_avatar.url)
+
+    embed.set_footer(
+        text=f"Shipped by {ctx.author}",
+        icon_url=ctx.author.display_avatar.url
+    )
+
+    await ctx.send(embed=embed)
+
+# ---------------- DUO SYSTEM ---------------- #
+
+@bot.command()
+async def match(ctx, member: discord.Member):
+
+    if str(ctx.author.id) in duos:
+        await ctx.send("You already have a duo.")
+        return
+
+    if str(member.id) in duos:
+        await ctx.send("That user already has a duo.")
+        return
+
+    duo_requests[member.id] = ctx.author.id
+
+    embed = discord.Embed(
+        title="Duo Request",
+        description=f"{ctx.author.mention} wants to duo with {member.mention}",
+        color=discord.Color.blurple()
+    )
+
+    embed.add_field(
+        name="Accept",
+        value=f"{member.mention} type .accept",
         inline=False
     )
 
     await ctx.send(embed=embed)
 
-# ---------------- ECONOMY COMMANDS ---------------- #
-
 @bot.command()
-async def balance(ctx, member: discord.Member=None):
+async def accept(ctx):
 
-    member = member or ctx.author
-    create_account(member)
+    if ctx.author.id not in duo_requests:
+        await ctx.send("No duo request.")
+        return
 
-    cursor.execute(
-        "SELECT wallet,bank FROM economy WHERE user_id=?",
-        (member.id,)
-    )
+    requester = duo_requests[ctx.author.id]
 
-    wallet, bank = cursor.fetchone()
+    duos[str(ctx.author.id)] = str(requester)
+    duos[str(requester)] = str(ctx.author.id)
+
+    safe_save(DUOS_FILE, duos)
+
+    del duo_requests[ctx.author.id]
 
     embed = discord.Embed(
-        title="Tony Stark Economy",
-        color=0x2b2d31
+        title="Duo Created ❤️",
+        description=f"<@{requester}> ❤️ {ctx.author.mention}",
+        color=discord.Color.green()
     )
-
-    embed.add_field(name="Wallet", value=f"🪙 {wallet:,}")
-    embed.add_field(name="Bank", value=f"🏦 {bank:,}")
 
     await ctx.send(embed=embed)
 
 @bot.command()
-async def deposit(ctx, amount:int):
+async def duo(ctx):
 
-    create_account(ctx.author)
+    if str(ctx.author.id) not in duos:
+        await ctx.send("You don't have a duo.")
+        return
 
-    cursor.execute(
-        "SELECT wallet,bank FROM economy WHERE user_id=?",
-        (ctx.author.id,)
-    )
-
-    wallet, bank = cursor.fetchone()
-
-    if amount > wallet:
-        return await ctx.send("Not enough money.")
-
-    wallet -= amount
-    bank += amount
-
-    cursor.execute(
-        "UPDATE economy SET wallet=?, bank=? WHERE user_id=?",
-        (wallet,bank,ctx.author.id)
-    )
-
-    conn.commit()
-
-    await ctx.send(f"Deposited **{amount:,}** coins.")
-
-@bot.command()
-async def withdraw(ctx, amount:int):
-
-    create_account(ctx.author)
-
-    cursor.execute(
-        "SELECT wallet,bank FROM economy WHERE user_id=?",
-        (ctx.author.id,)
-    )
-
-    wallet, bank = cursor.fetchone()
-
-    if amount > bank:
-        return await ctx.send("Not enough bank balance.")
-
-    bank -= amount
-    wallet += amount
-
-    cursor.execute(
-        "UPDATE economy SET wallet=?, bank=? WHERE user_id=?",
-        (wallet,bank,ctx.author.id)
-    )
-
-    conn.commit()
-
-    await ctx.send(f"Withdrew **{amount:,}** coins.")
-
-@bot.command()
-async def claim(ctx):
-
-    create_account(ctx.author)
-
-    reward = random.randint(500,2000)
-
-    cursor.execute(
-        "UPDATE economy SET wallet = wallet + ? WHERE user_id=?",
-        (reward, ctx.author.id)
-    )
-
-    conn.commit()
-
-    await ctx.send(f"You claimed **{reward:,} coins**.")
-
-# ---------------- ROULETTE ---------------- #
-
-bets = {}
-roulette_running = False
-
-@bot.command()
-async def roulette(ctx, amount:int, bet:str):
-
-    global roulette_running
-
-    create_account(ctx.author)
-
-    cursor.execute(
-        "SELECT wallet FROM economy WHERE user_id=?",
-        (ctx.author.id,)
-    )
-
-    wallet = cursor.fetchone()[0]
-
-    if wallet < amount:
-        return await ctx.send("Not enough money.")
-
-    cursor.execute(
-        "UPDATE economy SET wallet = wallet - ? WHERE user_id=?",
-        (amount, ctx.author.id)
-    )
-
-    conn.commit()
-
-    bets[ctx.author.id] = {
-        "amount": amount,
-        "bet": bet.lower()
-    }
-
-    await ctx.send(f"Bet **{amount}** on **{bet}**.")
-
-    if not roulette_running:
-
-        roulette_running = True
-
-        await ctx.send("Roulette spinning in **30 seconds**...")
-
-        await asyncio.sleep(30)
-
-        await spin_roulette(ctx)
-
-async def spin_roulette(ctx):
-
-    global bets, roulette_running
-
-    color = random.choice(["red","black","green"])
-    number = random.randint(0,36)
-
-    winners = []
-
-    for uid,data in bets.items():
-
-        amount = data["amount"]
-        bet = data["bet"]
-
-        win = False
-        payout = 0
-
-        if bet == color:
-            payout = amount * 2
-            win = True
-
-        if bet.isdigit() and int(bet) == number:
-            payout = amount * 35
-            win = True
-
-        if win:
-
-            cursor.execute(
-                "UPDATE economy SET wallet = wallet + ?, wins = wins + 1 WHERE user_id=?",
-                (payout, uid)
-            )
-
-            winners.append(f"<@{uid}> won {payout}")
-
-        else:
-
-            cursor.execute(
-                "UPDATE economy SET losses = losses + 1 WHERE user_id=?",
-                (uid,)
-            )
-
-    conn.commit()
+    partner = ctx.guild.get_member(int(duos[str(ctx.author.id)]))
 
     embed = discord.Embed(
-        title="Roulette Result",
-        description=f"Color: **{color}**\nNumber: **{number}**"
+        title="Your Duo",
+        description=f"{ctx.author.mention} ❤️ {partner.mention}",
+        color=discord.Color.blurple()
     )
-
-    if winners:
-        embed.add_field(name="Winners", value="\n".join(winners))
-    else:
-        embed.add_field(name="Winners", value="No winners.")
 
     await ctx.send(embed=embed)
 
-    bets = {}
-    roulette_running = False
+@bot.command()
+async def unmatch(ctx):
 
-# ---------------- RUN ---------------- #
+    if str(ctx.author.id) not in duos:
+        await ctx.send("You don't have a duo.")
+        return
+
+    partner = duos[str(ctx.author.id)]
+
+    duos.pop(str(ctx.author.id), None)
+    duos.pop(str(partner), None)
+
+    safe_save(DUOS_FILE, duos)
+
+    await ctx.send("💔 Duo removed.")
+
+# ---------------- ROLE DROP ---------------- #
+
+ROLEDROP_FILE = "roledrop_winners.json"
+
+EXECUTOR_ROLE_ID = 1481903901656481812
+MESSI_ROLE_ID = 1476264072809943091
+CRISTIANO_ROLE_ID = 1476262979010957414
+OWNER_FAVOURITE_ID = 1476260723297489019
+
+ALLOWED_DROP_ROLES = [
+    MESSI_ROLE_ID,
+    CRISTIANO_ROLE_ID,
+    OWNER_FAVOURITE_ID
+]
+
+if not os.path.exists(ROLEDROP_FILE):
+    with open(ROLEDROP_FILE, "w") as f:
+        json.dump({}, f)
+
+def load_roledrop():
+    with open(ROLEDROP_FILE, "r") as f:
+        return json.load(f)
+
+def save_roledrop(data):
+    with open(ROLEDROP_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+@bot.hybrid_command()
+async def roledrop(ctx, role: discord.Role):
+
+    executor_role = ctx.guild.get_role(EXECUTOR_ROLE_ID)
+
+    if executor_role not in ctx.author.roles:
+        await ctx.send("❌ You cannot execute this command.")
+        return
+
+    if role.id not in ALLOWED_DROP_ROLES:
+        await ctx.send("❌ You can only drop allowed roles.")
+        return
+
+    winners = load_roledrop()
+
+    embed = discord.Embed(
+        title="🎉 Role Drop",
+        description=f"Reply to this message to win {role.mention}!",
+        color=discord.Color.gold()
+    )
+
+    drop_message = await ctx.send(
+        content="@everyone",
+        embed=embed
+    )
+
+    def check(m):
+        return (
+            m.channel == ctx.channel and
+            m.reference and
+            m.reference.message_id == drop_message.id and
+            not m.author.bot
+        )
+
+    try:
+
+        msg = await bot.wait_for("message", timeout=30, check=check)
+
+        role_id = str(role.id)
+        user_id = str(msg.author.id)
+
+        winners.setdefault(role_id, [])
+
+        if user_id in winners[role_id]:
+            await ctx.send(f"{msg.author.mention} already won **{role.name}** before.")
+            return
+
+        await msg.author.add_roles(role)
+
+        winners[role_id].append(user_id)
+
+        save_roledrop(winners)
+
+        win = discord.Embed(
+            description=f"🏆 {msg.author.mention} won **{role.name}**!",
+            color=discord.Color.green()
+        )
+
+        await ctx.send(embed=win)
+
+    except asyncio.TimeoutError:
+
+        await ctx.send("⏱️ No one claimed the role in time.")
+
+# ---------------- RUN BOT ---------------- #
 
 bot.run(TOKEN)
