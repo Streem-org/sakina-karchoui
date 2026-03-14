@@ -43,7 +43,7 @@ start_time = time.time()
 
 eightball_responses = [
 "Yes","No","Ask again later","It is certain",
-"Reply hazy try later","Not in the mood","I forgot the question"
+"My Dev said no","Not in the mood","I forgot the question"
 ]
 
 # ---------------- BOT ---------------- #
@@ -416,28 +416,29 @@ async def uptime_command(ctx):
     await ctx.reply(embed=embed)
     # ---------------- CHOOSE ---------------- #
 @bot.hybrid_command()
-async def choose(ctx, options: str):
+async def choose(ctx, *, options: str):
 
-    choices = options.split(",")
+    choices = [c.strip() for c in options.split(",") if c.strip()]
 
     if len(choices) < 2:
         await ctx.reply("Provide choices separated by commas.\nExample: `.choose pizza, burger, pasta`")
         return
 
-    choice = random.choice(choices).strip()
+    choice = random.choice(choices)
 
     embed = discord.Embed(
         title="Otis Khan Decision Engine",
         description=f"I choose **{choice}**",
-        color=discord.Color.dark_green()
+        color=discord.Color.blurple()
     )
 
     embed.add_field(
         name="Choices",
-        value=", ".join(c.strip() for c in choices),
+        value=", ".join(choices),
         inline=False
     )
 
     await ctx.reply(embed=embed)
+    
 bot.run(TOKEN)
 
