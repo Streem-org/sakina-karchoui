@@ -19,18 +19,21 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
-# ---------------- FILES ---------------- #
+# ---------------- CONSTANTS ---------------- #
+
+MAIN_SERVER = 1469526303148609720
+COUNTING_CHANNEL = 1477918309696667800
 
 TIME_FILE = "times.json"
 WEEKLY_FILE = "weekly.json"
 DUOS_FILE = "duos.json"
 BLACKLIST_FILE = "blacklist.json"
 
-# ---------------- SAFE FILE ---------------- #
+# ---------------- FILE SYSTEM ---------------- #
 
 def safe_load(file):
     try:
-        with open(file,"r") as f:
+        with open(file, "r") as f:
             data = f.read().strip()
             if not data:
                 return {}
@@ -38,15 +41,13 @@ def safe_load(file):
     except:
         return {}
 
-def safe_save(file,data):
-    with open(file,"w") as f:
-        json.dump(data,f,indent=4)
+def safe_save(file, data):
+    with open(file, "w") as f:
+        json.dump(data, f, indent=4)
 
-# ---------------- CREATE FILES ---------------- #
-
-for file in [TIME_FILE,WEEKLY_FILE,DUOS_FILE,BLACKLIST_FILE]:
+for file in [TIME_FILE, WEEKLY_FILE, DUOS_FILE, BLACKLIST_FILE]:
     if not os.path.exists(file):
-        safe_save(file,{})
+        safe_save(file, {})
 
 # ---------------- DATA ---------------- #
 
@@ -69,16 +70,9 @@ last_counter = None
 
 start_time = time.time()
 
-COUNTING_CHANNEL = 1477918309696667800
-
 eightball_responses = [
-"Yes",
-"No",
-"Ask again later",
-"It is certain",
-"Reply hazy try again",
-"Not in the mood",
-"I forgot the question"
+"Yes","No","Ask again later","It is certain",
+"Reply hazy try later","Not in the mood","I forgot the question"
 ]
 
 # ---------------- BOT ---------------- #
@@ -88,9 +82,9 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(
-command_prefix=".",
-intents=intents,
-help_command=None
+    command_prefix=".",
+    intents=intents,
+    help_command=None
 )
 
 # ---------------- TERMINAL CONTROL ---------------- #
@@ -106,9 +100,7 @@ async def terminal_listener():
         if cmd.startswith("say"):
 
             try:
-
                 parts = cmd.split()
-
                 channel_id = int(parts[1])
                 channel = bot.get_channel(channel_id)
 
@@ -126,12 +118,14 @@ async def terminal_listener():
                 await channel.send(message)
 
             except Exception as e:
-                print("Terminal error:",e)
+                print("Terminal error:", e)
 
 # ---------------- READY ---------------- #
 
 @bot.event
 async def on_ready():
+
+    print(f"Logged in as {bot.user}")
 
     await bot.change_presence(
         status=discord.Status.dnd,
@@ -143,8 +137,6 @@ async def on_ready():
 
     bot.loop.create_task(terminal_listener())
 
-    print("Bot online:",bot.user)
-
 # ---------------- WEEKLY RESET ---------------- #
 
 @tasks.loop(hours=168)
@@ -155,14 +147,14 @@ async def weekly_reset():
     weekly_data = {}
     weekly_messages.clear()
 
-    safe_save(WEEKLY_FILE,weekly_data)
+    safe_save(WEEKLY_FILE, weekly_data)
 
 # ---------------- MESSAGE EVENT ---------------- #
 
 @bot.event
 async def on_message(message):
 
-    global count_number,last_counter
+    global count_number, last_counter
 
     if message.author.bot:
         return
@@ -170,29 +162,29 @@ async def on_message(message):
     if message.author.id in blacklist:
         return
 
-    weekly_messages[message.author.id]+=1
-    weekly_data[str(message.author.id)]=weekly_messages[message.author.id]
+    weekly_messages[message.author.id] += 1
+    weekly_data[str(message.author.id)] = weekly_messages[message.author.id]
 
-    safe_save(WEEKLY_FILE,weekly_data)
+    safe_save(WEEKLY_FILE, weekly_data)
 
-    if message.channel.id==COUNTING_CHANNEL:
+    if message.channel.id == COUNTING_CHANNEL:
 
         try:
-            num=int(message.content)
+            num = int(message.content)
         except:
             await message.delete()
             return
 
-        if num!=count_number+1:
+        if num != count_number + 1:
             await message.delete()
             return
 
-        if message.author.id==last_counter:
+        if message.author.id == last_counter:
             await message.delete()
             return
 
-        count_number=num
-        last_counter=message.author.id
+        count_number = num
+        last_counter = message.author.id
 
     await bot.process_commands(message)
 
@@ -201,10 +193,10 @@ async def on_message(message):
 @bot.command()
 async def help(ctx):
 
-    embed=discord.Embed(
-        title="Pakistan Football Federation Command Panel",
+    embed = discord.Embed(
+        title="Jarvis Command Panel",
         description="Prefix: .",
-        color=discord.Color.dark_green()
+        color=discord.Color.blurple()
     )
 
     embed.add_field(
@@ -230,33 +222,28 @@ async def help(ctx):
 # ---------------- AFK ---------------- #
 
 @bot.command()
-async def afk(ctx,*,reason="AFK"):
+async def afk(ctx, *, reason="AFK"):
 
-    afk_users[ctx.author.id]=reason
+    afk_users[ctx.author.id] = reason
 
-    embed=discord.Embed(
+    embed = discord.Embed(
         description=f"{ctx.author.mention} is now AFK",
         color=discord.Color.orange()
     )
 
-    embed.add_field(name="Reason",value=reason)
+    embed.add_field(name="Reason", value=reason)
 
     await ctx.send(embed=embed)
 
 # ---------------- WEEKLY ---------------- #
+
 @bot.command()
 async def wk(ctx, sub=None, member: discord.Member=None):
 
-    # SERVER RESTRICTION
-    if ctx.guild is None or ctx.guild.id != 1469526303148609720:
-        await ctx.send("❌ This command can only be used in the main server.")
+    if ctx.guild.id != MAIN_SERVER:
         return
 
     if sub is None:
-
-        if not weekly_data:
-            await ctx.send("No weekly data yet.")
-            return
 
         sorted_data = sorted(
             weekly_data.items(),
@@ -266,12 +253,12 @@ async def wk(ctx, sub=None, member: discord.Member=None):
 
         desc = ""
 
-        for i, (user_id, points) in enumerate(sorted_data[:10], start=1):
+        for i,(uid,msgs) in enumerate(sorted_data[:10],1):
 
-            user = ctx.guild.get_member(int(user_id))
+            user = ctx.guild.get_member(int(uid))
 
             if user:
-                desc += f"**{i}. {user.name}** — {points} messages\n"
+                desc += f"**{i}. {user.name}** — {msgs}\n"
 
         embed = discord.Embed(
             title="Weekly Leaderboard",
@@ -285,7 +272,7 @@ async def wk(ctx, sub=None, member: discord.Member=None):
 
         member = member or ctx.author
 
-        points = weekly_data.get(str(member.id), 0)
+        points = weekly_data.get(str(member.id),0)
 
         embed = discord.Embed(
             title="Weekly Stats",
@@ -294,58 +281,54 @@ async def wk(ctx, sub=None, member: discord.Member=None):
         )
 
         await ctx.send(embed=embed)
+
 # ---------------- TIME ---------------- #
 
 @bot.command()
-async def time(ctx,sub=None,*,value=None):
+async def time(ctx, sub=None, *, value=None):
 
-    if sub=="set":
-
-        if not value:
-            await ctx.send("Example: `.time set Asia/Kolkata`")
-            return
+    if sub == "set":
 
         try:
             pytz.timezone(value)
         except:
-            await ctx.send("Invalid timezone")
+            await ctx.send("Invalid timezone example: `.time set Asia/Kolkata`")
             return
 
-        times[str(ctx.author.id)]=value
-        safe_save(TIME_FILE,times)
+        times[str(ctx.author.id)] = value
+        safe_save(TIME_FILE, times)
 
         await ctx.send(f"Timezone set to **{value}**")
         return
 
-    member=ctx.message.mentions[0] if ctx.message.mentions else ctx.author
+    member = ctx.message.mentions[0] if ctx.message.mentions else ctx.author
 
     if str(member.id) not in times:
-
-        await ctx.send(f"{member.mention} has not set timezone")
+        await ctx.send(f"{member.mention} has not set timezone.")
         return
 
-    tz=pytz.timezone(times[str(member.id)])
-    now=datetime.datetime.now(tz)
+    tz = pytz.timezone(times[str(member.id)])
+    now = datetime.datetime.now(tz)
 
-    embed=discord.Embed(
+    embed = discord.Embed(
         title=f"{member.display_name}'s Time",
         color=discord.Color.blurple()
     )
 
-    embed.add_field(name="Time",value=now.strftime("%I:%M %p"))
-    embed.add_field(name="Date",value=now.strftime("%d %B %Y"))
-    embed.add_field(name="Timezone",value=times[str(member.id)])
+    embed.add_field(name="Time", value=now.strftime("%I:%M %p"))
+    embed.add_field(name="Date", value=now.strftime("%d %B %Y"))
+    embed.add_field(name="Timezone", value=times[str(member.id)])
 
     await ctx.send(embed=embed)
 
 # ---------------- AVATAR ---------------- #
 
 @bot.command()
-async def avatar(ctx,member:discord.Member=None):
+async def avatar(ctx, member: discord.Member=None):
 
-    member=member or ctx.author
+    member = member or ctx.author
 
-    embed=discord.Embed(
+    embed = discord.Embed(
         title=f"{member.name}'s Avatar",
         color=discord.Color.blurple()
     )
@@ -359,9 +342,9 @@ async def avatar(ctx,member:discord.Member=None):
 @bot.command()
 async def uptime(ctx):
 
-    seconds=int(time.time()-start_time)
+    seconds = int(time.time() - start_time)
 
-    embed=discord.Embed(
+    embed = discord.Embed(
         title="Uptime",
         description=str(timedelta(seconds=seconds)),
         color=discord.Color.green()
@@ -372,28 +355,28 @@ async def uptime(ctx):
 # ---------------- 8BALL ---------------- #
 
 @bot.command(name="8ball")
-async def eightball(ctx,*,question):
+async def eightball(ctx, *, question):
 
-    reply=random.choice(eightball_responses)
+    reply = random.choice(eightball_responses)
 
     if "are u gay" in question.lower():
-        reply="I may or may not be gay but you seem to be"
+        reply = "I may or may not be gay but you seem to be."
 
-    embed=discord.Embed(title="Magic 8ball")
+    embed = discord.Embed(title="Magic 8ball")
 
-    embed.add_field(name="Question",value=question)
-    embed.add_field(name="Answer",value=reply)
+    embed.add_field(name="Question", value=question)
+    embed.add_field(name="Answer", value=reply)
 
     await ctx.send(embed=embed)
 
 # ---------------- SHIP ---------------- #
 
 @bot.command()
-async def ship(ctx,u1:discord.Member,u2:discord.Member):
+async def ship(ctx, u1: discord.Member, u2: discord.Member):
 
-    percent=random.randint(0,100)
+    percent = random.randint(0,100)
 
-    embed=discord.Embed(
+    embed = discord.Embed(
         title="Ship",
         description=f"{u1.mention} ❤️ {u2.mention}\n{percent}% compatibility",
         color=discord.Color.pink()
@@ -401,87 +384,31 @@ async def ship(ctx,u1:discord.Member,u2:discord.Member):
 
     await ctx.send(embed=embed)
 
-# ---------------- DUO ---------------- #
-
-@bot.command()
-async def match(ctx,member:discord.Member):
-
-    duo_requests[member.id]=ctx.author.id
-
-    await ctx.send(f"{member.mention} type `.accept`")
-
-@bot.command()
-async def accept(ctx):
-
-    if ctx.author.id not in duo_requests:
-        await ctx.send("No request")
-        return
-
-    requester=duo_requests[ctx.author.id]
-
-    duos[str(ctx.author.id)]=str(requester)
-    duos[str(requester)]=str(ctx.author.id)
-
-    safe_save(DUOS_FILE,duos)
-
-    del duo_requests[ctx.author.id]
-
-    await ctx.send(f"<@{requester}> ❤️ {ctx.author.mention}")
-
-@bot.command()
-async def duo(ctx):
-
-    if str(ctx.author.id) not in duos:
-        await ctx.send("No duo")
-        return
-
-    partner=duos[str(ctx.author.id)]
-
-    await ctx.send(f"{ctx.author.mention} ❤️ <@{partner}>")
-
-@bot.command()
-async def unmatch(ctx):
-
-    if str(ctx.author.id) not in duos:
-        await ctx.send("No duo")
-        return
-
-    partner=duos[str(ctx.author.id)]
-
-    duos.pop(str(ctx.author.id))
-    duos.pop(str(partner))
-
-    safe_save(DUOS_FILE,duos)
-
-    await ctx.send("Duo removed")
-
 # ---------------- BLACKLIST ---------------- #
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def blacklist(ctx,member:discord.Member):
+async def blacklist(ctx, member: discord.Member):
 
     if member.id in blacklist:
-        await ctx.send("Already blacklisted")
         return
 
     blacklist.append(member.id)
 
-    safe_save(BLACKLIST_FILE,blacklist)
+    safe_save(BLACKLIST_FILE, blacklist)
 
     await ctx.send(f"{member.mention} blacklisted")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def unblacklist(ctx,member:discord.Member):
+async def unblacklist(ctx, member: discord.Member):
 
     if member.id not in blacklist:
-        await ctx.send("Not blacklisted")
         return
 
     blacklist.remove(member.id)
 
-    safe_save(BLACKLIST_FILE,blacklist)
+    safe_save(BLACKLIST_FILE, blacklist)
 
     await ctx.send(f"{member.mention} removed from blacklist")
 
@@ -492,7 +419,7 @@ async def unblacklist(ctx,member:discord.Member):
 async def reboot(ctx):
 
     await ctx.send("Rebooting...")
-    os.execv(__file__,["python"]+os.sys.argv)
+    os.execv(__file__, ["python"] + os.sys.argv)
 
 # ---------------- RUN ---------------- #
 
