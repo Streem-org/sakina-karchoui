@@ -392,26 +392,39 @@ async def reboot(ctx):
     os.execv(__file__,["python"]+os.sys.argv)
 # ---------------- UPTIME ---------------- #
 @bot.hybrid_command(name="uptime")
-async def uptime_command(ctx):
+async def uptime(ctx):
 
-    uptime_seconds = int(time.time() - start_time)
-    uptime = str(datetime.timedelta(seconds=uptime_seconds))
+    now = int(time.time())
 
-    cpu = psutil.cpu_percent()
-    ram = psutil.virtual_memory().percent
-    ping = round(bot.latency * 1000)
+    # bot uptime
+    bot_uptime_seconds = int(time.time() - start_time)
+    bot_reboot_time = now - bot_uptime_seconds
+
+    # system uptime
+    system_boot = int(psutil.boot_time())
+    system_uptime_seconds = now - system_boot
+
+    bot_uptime = str(datetime.timedelta(seconds=bot_uptime_seconds))
+    system_uptime = str(datetime.timedelta(seconds=system_uptime_seconds))
 
     embed = discord.Embed(
-        title="Otis Khan System Status",
-        color=discord.Color.teal()
+        title="Uptime Information",
+        color=discord.Color.dark_teal()
     )
 
-    embed.add_field(name="⏳ Uptime", value=uptime, inline=True)
-    embed.add_field(name="📡 Ping", value=f"{ping} ms", inline=True)
-    embed.add_field(name="🧠 CPU", value=f"{cpu}%", inline=True)
-    embed.add_field(name="💾 RAM", value=f"{ram}%", inline=True)
+    embed.description = (
+        f"**I was last rebooted <t:{bot_reboot_time}:R>.**\n\n"
+        f"**Bot Uptime**\n"
+        f"{bot_uptime}\n"
+        f"• <t:{bot_reboot_time}:f>\n\n"
+        f"**System Uptime**\n"
+        f"{system_uptime}\n"
+        f"• <t:{system_boot}:f>"
+    )
 
-    embed.set_footer(text="Otis Khan Monitoring")
+    embed.set_footer(
+        text=f"Requested by {ctx.author} • Today at {datetime.datetime.now().strftime('%I:%M %p')}"
+    )
 
     await ctx.reply(embed=embed)
     # ---------------- CHOOSE ---------------- #
@@ -439,6 +452,47 @@ async def choose(ctx, *, options: str):
     )
 
     await ctx.reply(embed=embed)
-    
+
+HOST_ROLE = 1481903901656481812  # hoster role (whitelisted)
+
+@bot.hybrid_command(name="roledrop")
+@commands.has_role(HOST_ROLE)
+async def roledrop(ctx, role: discord.Role):
+
+    # Prevent dropping the hoster role
+    if role.id == HOST_ROLE:
+        await ctx.reply("This role cannot be dropped.")
+        return
+
+    embed = discord.Embed(
+        title="Role Drop",
+        description=f"Reply to this message to claim {role.mention}",
+        color=discord.Color.gold()
+    )
+
+    msg = await ctx.send("@everyone", embed=embed)
+
+    def check(m):
+        return (
+            m.reference
+            and m.reference.message_id == msg.id
+            and m.author != bot.user
+        )
+
+    while True:
+        try:
+            reply = await bot.wait_for("message", timeout=120, check=check)
+
+            await reply.author.add_roles(role)
+
+            await reply.reply(
+                embed=discord.Embed(
+                    description=f"You received {role.mention}",
+                    color=discord.Color.green()
+                )
+            )
+
+        except:
+            break
 bot.run(TOKEN)
 
