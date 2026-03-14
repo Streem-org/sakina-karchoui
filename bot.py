@@ -9,6 +9,7 @@ import pytz
 import os
 import asyncio
 from collections import defaultdict
+from discord import ui, ButtonStyle
 
 TOKEN = os.getenv("TOKEN")
 
@@ -494,5 +495,48 @@ async def roledrop(ctx, role: discord.Role):
 
         except:
             break
+
+
+
+
+
+@bot.hybrid_command(name="avatar", description="View a user's avatar with options")
+async def avatar(ctx, member: discord.Member = None):
+    if member is None:
+        member = ctx.author
+
+    # Determine avatar URL (animated if possible)
+    avatar_url = member.avatar.url
+
+    embed = discord.Embed(
+        title=f"{member.name}'s Avatar",
+        description=f"[Click here to open full avatar]({avatar_url})",
+        color=discord.Color.blurple()
+    )
+    embed.set_image(url=avatar_url)
+    embed.set_footer(text="Otis Khan Bot System")
+
+    # Buttons for avatar
+    class AvatarButtons(ui.View):
+        def __init__(self):
+            super().__init__(timeout=None)  # buttons never timeout
+
+        @ui.button(label="Open Avatar", style=ButtonStyle.link, url=avatar_url)
+        async def open_avatar(self, interaction, button):
+            pass  # link button doesn't need action
+
+        @ui.button(label="Download PNG", style=ButtonStyle.secondary)
+        async def download_png(self, interaction, button):
+            await interaction.response.send_message(f"Here is the PNG version: {member.avatar.with_format('png').url}", ephemeral=True)
+
+        @ui.button(label="Download JPEG", style=ButtonStyle.secondary)
+        async def download_jpeg(self, interaction, button):
+            await interaction.response.send_message(f"Here is the JPEG version: {member.avatar.with_format('jpeg').url}", ephemeral=True)
+
+        @ui.button(label="Download WebP", style=ButtonStyle.secondary)
+        async def download_webp(self, interaction, button):
+            await interaction.response.send_message(f"Here is the WebP version: {member.avatar.with_format('webp').url}", ephemeral=True)
+
+    await ctx.send(embed=embed, view=AvatarButtons())
 bot.run(TOKEN)
 
