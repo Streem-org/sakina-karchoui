@@ -415,25 +415,26 @@ async def uptime_command(ctx):
 
     await ctx.reply(embed=embed)
     # ---------------- CHOOSE ---------------- #
-
 @bot.hybrid_command()
-async def choose(ctx, *options):
+async def choose(ctx, options: str):
 
-    if len(options) < 2:
-        await ctx.reply("Provide at least 2 choices.")
+    choices = options.split(",")
+
+    if len(choices) < 2:
+        await ctx.reply("Provide choices separated by commas.\nExample: `.choose pizza, burger, pasta`")
         return
 
-    choice = random.choice(options)
+    choice = random.choice(choices).strip()
 
     embed = discord.Embed(
         title="Otis Khan Decision Engine",
         description=f"I choose **{choice}**",
-        color=discord.Color.blurple()
+        color=discord.Color.dark_green()
     )
 
     embed.add_field(
         name="Choices",
-        value=", ".join(options),
+        value=", ".join(c.strip() for c in choices),
         inline=False
     )
 
