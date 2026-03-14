@@ -4,6 +4,7 @@ import json
 import random
 import time
 import datetime
+import psutil
 import pytz
 import os
 import asyncio
@@ -151,84 +152,58 @@ async def on_message(message):
     await bot.process_commands(message)
 
 # ---------------- HELP ---------------- #
-
 @bot.hybrid_command()
 async def help(ctx):
 
     embed = discord.Embed(
-        title="Jarvis Commands",
-        description="Prefix: .",
-        color=discord.Color.blurple()
+        title="Otis Khan Command Panel",
+        description="Prefix: `.`  |  Slash commands also supported",
+        color=discord.Color.dark_green()
     )
 
     embed.add_field(
-        name="Utility",
-        value=".avatar\n.uptime\n.time\n.afk",
+        name="🛠 Utility",
+        value="""
+`.avatar` – View user avatar  
+`.uptime` – Bot uptime  
+`.time` – Check time  
+`.time set <timezone>` – Set timezone  
+`.afk <reason>` – Enable AFK
+""",
         inline=False
     )
 
     embed.add_field(
-        name="Fun",
-        value=".8ball\n.ship",
+        name="🎮 Fun",
+        value="""
+`.8ball <question>` – Ask the magic ball  
+`.ship @user @user` – Check compatibility
+""",
         inline=False
     )
 
     embed.add_field(
-        name="Server",
-        value=".wk\n.wk p",
+        name="📊 Server",
+        value="""
+`.wk` – Weekly leaderboard  
+`.wk p @user` – Weekly stats
+""",
         inline=False
     )
 
-    await ctx.send(embed=embed)
-
-# ---------------- AFK ---------------- #
-
-@bot.hybrid_command()
-async def afk(ctx,*,reason="AFK"):
-
-    afk_users[ctx.author.id] = reason
-
-    embed = discord.Embed(
-        title="AFK Enabled",
-        description=f"{ctx.author.mention} is now AFK",
-        color=discord.Color.blue()
+    embed.add_field(
+        name="🔒 Moderation",
+        value="""
+`.blacklist @user` – Block user from commands  
+`.unblacklist @user` – Remove blacklist  
+`.reboot` – Restart bot
+""",
+        inline=False
     )
 
-    embed.add_field(name="Reason",value=reason)
+    embed.set_footer(text="Otis Khan • Advanced Utility Bot")
 
-    await ctx.send(embed=embed)
-
-# ---------------- AVATAR ---------------- #
-
-@bot.hybrid_command()
-async def avatar(ctx,member:discord.Member=None):
-
-    member = member or ctx.author
-
-    embed = discord.Embed(
-        title=f"{member.name}'s Avatar",
-        color=discord.Color.blurple()
-    )
-
-    embed.set_image(url=member.display_avatar.url)
-
-    await ctx.send(embed=embed)
-
-# ---------------- UPTIME ---------------- #
-
-@bot.hybrid_command()
-async def uptime(ctx):
-
-    seconds = int(time.time()-start_time)
-
-    embed = discord.Embed(
-        title="Bot Uptime",
-        description=str(datetime.timedelta(seconds=seconds)),
-        color=discord.Color.teal()
-    )
-
-    await ctx.send(embed=embed)
-
+    await ctx.reply(embed=embed)
 # ---------------- TIME ---------------- #
 
 @bot.hybrid_command()
@@ -415,6 +390,49 @@ async def reboot(ctx):
     await ctx.send(embed=embed)
 
     os.execv(__file__,["python"]+os.sys.argv)
+# ---------------- UPTIME ---------------- #
+    @bot.hybrid_command()
+    async def uptime(ctx):
+
+     uptime_seconds = int(time.time() - start_time)
+    uptime = str(datetime.timedelta(seconds=uptime_seconds))
+
+    cpu = psutil.cpu_percent()
+    ram = psutil.virtual_memory().percent
+    ping = round(bot.latency * 1000)
+
+    embed = discord.Embed(
+        title="Otis Khan System Status",
+        color=discord.Color.teal()
+    )
+
+    embed.add_field(
+        name="⏳ Uptime",
+        value=uptime,
+        inline=True
+    )
+
+    embed.add_field(
+        name="📡 Ping",
+        value=f"{ping} ms",
+        inline=True
+    )
+
+    embed.add_field(
+        name="🧠 CPU Usage",
+        value=f"{cpu}%",
+        inline=True
+    )
+
+    embed.add_field(
+        name="💾 RAM Usage",
+        value=f"{ram}%",
+        inline=True
+    )
+
+    embed.set_footer(text="Otis Khan Monitoring System")
+
+    await ctx.reply(embed=embed)
 
 bot.run(TOKEN)
 
