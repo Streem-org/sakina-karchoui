@@ -9,7 +9,6 @@ import pytz
 import os
 import asyncio
 from collections import defaultdict
-from discord import ui, ButtonStyle
 
 TOKEN = os.getenv("TOKEN")
 
@@ -19,6 +18,16 @@ MAIN_SERVER = 1469526303148609720
 TIME_FILE = "times.json"
 WEEKLY_FILE = "weekly.json"
 BLACKLIST_FILE = "blacklist.json"
+AUTOREACT_FILE = "autoreactions.json"
+
+ALLOWED_SERVERS = [
+1469526303148609720,
+1386245608184090795,
+1479551809080135763
+]
+
+GENERAL_CHANNEL = 1469526304738119940
+HOST_ROLE = 1481903901656481812
 
 
 # ---------------- FILE SYSTEM ---------------- #
@@ -37,8 +46,7 @@ def save_json(file,data):
 times = load_json(TIME_FILE)
 weekly_data = load_json(WEEKLY_FILE)
 blacklisted_users = load_json(BLACKLIST_FILE)
-AUTOREACT_FILE = "autoreactions.json"
-autoreactions = safe_load(AUTOREACT_FILE)
+autoreactions = load_json(AUTOREACT_FILE)
 
 weekly_messages = defaultdict(int)
 afk_users = {}
@@ -50,30 +58,28 @@ eightball_responses = [
 "Ok bro as u wish","Not in the mood","I forgot the question"
 ]
 
+
 # ---------------- BOT ---------------- #
 
-ALLOWED_SERVERS = [
-    1469526303148609720,
-    1386245608184090795,
-    1479551809080135763
-]
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(
-    command_prefix=PREFIX,
-    intents=intents,
-    help_command=None
+command_prefix=PREFIX,
+intents=intents,
+help_command=None
 )
 
-# ---------------- READY ---------------- #
+
+# ---------------- SERVER WHITELIST ---------------- #
 
 @bot.event
 async def on_guild_join(guild):
 
     if guild.id not in ALLOWED_SERVERS:
         await guild.leave()
+
 
 @bot.event
 async def on_ready():
@@ -83,6 +89,7 @@ async def on_ready():
             await guild.leave()
 
     print(f"Logged in as {bot.user}")
+
     await bot.change_presence(
         status=discord.Status.dnd,
         activity=discord.Game("Training again")
@@ -91,27 +98,7 @@ async def on_ready():
     weekly_reset.start()
     bot.loop.create_task(terminal_commands())
 
-# ---------------- TERMINAL COMMAND SYSTEM ---------------- #
 
-async def terminal_commands():
-
-    await bot.wait_until_ready()
-
-    while True:
-
-        cmd = await asyncio.to_thread(input)
-
-        if cmd.startswith("say"):
-
-            parts = cmd.split(" ")
-
-            channel_id = int(parts[1])
-            message = " ".join(parts[2:])
-
-            channel = bot.get_channel(channel_id)
-
-            if channel:
-                await channel.send(message)
 
 # ---------------- WEEKLY RESET ---------------- #
 
@@ -124,6 +111,7 @@ async def weekly_reset():
     weekly_messages.clear()
 
     save_json(WEEKLY_FILE,weekly_data)
+
 
 # ---------------- MESSAGE EVENT ---------------- #
 
@@ -146,9 +134,9 @@ async def on_message(message):
         del afk_users[message.author.id]
 
         embed = discord.Embed(
-            title="AFK Removed",
-            description=f"{message.author.mention} is no longer AFK",
-            color=discord.Color.green()
+        title="AFK Removed",
+        description=f"{message.author.mention} is no longer AFK",
+        color=discord.Color.green()
         )
 
         await message.channel.send(embed=embed)
@@ -158,260 +146,154 @@ async def on_message(message):
         if user.id in afk_users:
 
             embed = discord.Embed(
-                title="User AFK",
-                description=f"{user.mention} is AFK\nReason: {afk_users[user.id]}",
-                color=discord.Color.orange()
+            title="User AFK",
+            description=f"{user.mention} is AFK\nReason: {afk_users[user.id]}",
+            color=discord.Color.orange()
             )
 
             await message.channel.send(embed=embed)
 
+    # AUTOREACTIONS
+    for phrase,emoji in autoreactions.items():
+
+        if phrase in message.content.lower():
+
+            try:
+                await message.add_reaction(emoji)
+            except:
+                pass
+
     await bot.process_commands(message)
 
+
 # ---------------- HELP ---------------- #
+
 @bot.hybrid_command()
 async def help(ctx):
 
     embed = discord.Embed(
-        title="Otis Khan Command Panel",
-        description="Prefix: `.`  |  Slash commands also supported",
-        color=discord.Color.dark_green()
+    title="Otis Khan Command Panel",
+    description="Prefix: `.`  |  Slash supported",
+    color=discord.Color.dark_green()
     )
 
     embed.add_field(
-        name="🛠 Utility",
-        value="""
-`.avatar` – View user avatar  
-`.uptime` – Bot uptime  
-`.time` – Check time  
-`.time set <timezone>` – Set timezone  
-`.afk <reason>` – Enable AFK
+    name="Utility",
+    value="""
+`.avatar` - View User Avatar
+`.uptime` - Bot Uptime Status
+`.time` - View your time
+`.time set` - Set your timezone
+`.afk` - Enable AFK
+`.roleinfo`- View a specific role detail
+`.serverinfo`- View server detail
 """,
-        inline=False
+    inline=False
     )
 
     embed.add_field(
-        name="🎮 Fun",
-        value="""
-`.8ball <question>` – Ask the magic ball  
-`.ship @user @user` – Check compatibility
+    name="Fun",
+    value="""
+`.8ball`- Ask the bot random ahh questions (may lead to bot give some egoistic reply)
+`.ship` - Make some random couples
+`.choose`- Choose between options coz Otis Khan is wise
 """,
-        inline=False
+    inline=False
     )
 
     embed.add_field(
-        name="📊 Server",
-        value="""
-`.wk` – Weekly leaderboard  
-`.wk p @user` – Weekly stats
+    name="Server",
+    value="""
+`.wk`- Weekly Leaderboard
+`.wk p`- View how nolifer are you
 """,
-        inline=False
+    inline=False
     )
 
     embed.add_field(
-        name="🔒 Moderation",
-        value="""
-`.blacklist @user` – Block user from commands  
-`.unblacklist @user` – Remove blacklist  
-`.reboot` – Restart bot
+    name="Admin",
+    value="""
+`.blacklist`
+`.unblacklist`
+`.say`
+`.roledrop`
+`.autoreaction add`
 """,
-        inline=False
+    inline=False
     )
-
-    embed.set_footer(text="Otis Khan • Advanced Utility Bot")
 
     await ctx.reply(embed=embed)
-# ---------------- TIME ---------------- #
 
-@bot.hybrid_command()
-async def time(ctx,sub=None,*,value=None):
 
-    if sub == "set":
+# ---------------- AUTOREACTION COMMANDS ---------------- #
 
-        try:
-            pytz.timezone(value)
-        except:
-            await ctx.send("Example: `.time set Asia/Kolkata`")
-            return
-
-        times[str(ctx.author.id)] = value
-        save_json(TIME_FILE,times)
-
-        embed = discord.Embed(
-            title="Timezone Updated",
-            description=f"Timezone set to **{value}**",
-            color=discord.Color.orange()
-        )
-
-        await ctx.send(embed=embed)
-        return
-
-    member = ctx.message.mentions[0] if ctx.message.mentions else ctx.author
-
-    if str(member.id) not in times:
-        await ctx.send("Timezone not set.")
-        return
-
-    tz = pytz.timezone(times[str(member.id)])
-    now = datetime.datetime.now(tz)
+@bot.hybrid_group(name="autoreaction",invoke_without_command=True)
+async def autoreaction(ctx):
 
     embed = discord.Embed(
-        title="User Time",
-        color=discord.Color.purple()
+    title="Autoreaction Commands",
+    description="""
+.autoreaction add <phrase> <emoji>
+.autoreaction remove <phrase>
+.autoreaction list
+""",
+    color=discord.Color.blurple()
     )
 
-    embed.add_field(name="User",value=member.mention)
-    embed.add_field(name="Time",value=now.strftime("%I:%M %p"))
-    embed.add_field(name="Timezone",value=times[str(member.id)])
+    await ctx.reply(embed=embed)
 
-    await ctx.send(embed=embed)
 
-# ---------------- WEEKLY ---------------- #
+@autoreaction.command(name="add")
+@commands.has_permissions(manage_guild=True)
+async def autoreaction_add(ctx,phrase:str,emoji:str):
 
-@bot.hybrid_command()
-async def wk(ctx,sub=None,member:discord.Member=None):
-
-    if ctx.guild.id != MAIN_SERVER:
-        return
-
-    if sub is None:
-
-        sorted_data = sorted(
-            weekly_data.items(),
-            key=lambda x:x[1],
-            reverse=True
-        )
-
-        text=""
-
-        for i,(uid,msgs) in enumerate(sorted_data[:10],1):
-
-            user = ctx.guild.get_member(int(uid))
-
-            if user:
-                text += f"**{i}. {user.name}** — {msgs} messages\n"
-
-        embed = discord.Embed(
-            title="Weekly Leaderboard",
-            description=text,
-            color=discord.Color.gold()
-        )
-
-        await ctx.send(embed=embed)
-
-    elif sub == "p":
-
-        member = member or ctx.author
-        msgs = weekly_data.get(str(member.id),0)
-
-        embed = discord.Embed(
-            title="Weekly Stats",
-            color=discord.Color.green()
-        )
-
-        embed.add_field(name="User",value=member.mention)
-        embed.add_field(name="Messages",value=str(msgs))
-
-        await ctx.send(embed=embed)
-
-# ---------------- 8BALL ---------------- #
-
-@bot.hybrid_command(name="8ball")
-async def eightball(ctx, *, question):
-
-    reply = random.choice(eightball_responses)
-
-    if "are u gay" in question.lower():
-        reply = "I may or may not be gay but you seem to be."
+    autoreactions[phrase.lower()] = emoji
+    save_json(AUTOREACT_FILE,autoreactions)
 
     embed = discord.Embed(
-        title="Magic 8Ball",
-        color=discord.Color.dark_purple()
+    title="Autoreaction Added",
+    description=f"`{phrase}` → {emoji}",
+    color=discord.Color.green()
     )
 
-    embed.add_field(name="Question",value=question,inline=False)
-    embed.add_field(name="Answer",value=reply,inline=False)
+    await ctx.reply(embed=embed)
 
-    await ctx.send(embed=embed)
 
-# ---------------- SHIP ---------------- #
+@autoreaction.command(name="remove")
+async def autoreaction_remove(ctx,phrase:str):
 
-@bot.hybrid_command()
-async def ship(ctx,u1:discord.Member,u2:discord.Member):
-
-    percent = random.randint(0,100)
+    autoreactions.pop(phrase.lower(),None)
+    save_json(AUTOREACT_FILE,autoreactions)
 
     embed = discord.Embed(
-        title="Ship Result",
-        color=discord.Color.red()
+    title="Autoreaction Removed",
+    color=discord.Color.red()
     )
 
-    embed.add_field(
-        name="Couple",
-        value=f"{u1.mention} ❤️ {u2.mention}",
-        inline=False
-    )
+    await ctx.reply(embed=embed)
 
-    embed.add_field(
-        name="Compatibility",
-        value=f"{percent}%",
-        inline=False
-    )
 
-    await ctx.send(embed=embed)
+@autoreaction.command(name="list")
+async def autoreaction_list(ctx):
 
-# ---------------- BLACKLIST ---------------- #
+    if not autoreactions:
+        return await ctx.reply("No autoreactions set.")
 
-@bot.hybrid_command()
-@commands.has_permissions(administrator=True)
-async def blacklist(ctx,member:discord.Member):
+    text=""
 
-    blacklisted_users[str(member.id)] = True
-    save_json(BLACKLIST_FILE,blacklisted_users)
+    for phrase,emoji in autoreactions.items():
+        text += f"`{phrase}` → {emoji}\n"
 
     embed = discord.Embed(
-        title="User Blacklisted, Sounds like a skill issue",
-        description=f"{member.mention} cannot use commands",
-        color=discord.Color.red()
+    title="Autoreaction List",
+    description=text,
+    color=discord.Color.blurple()
     )
 
-    await ctx.send(embed=embed)
+    await ctx.reply(embed=embed)
 
-@bot.hybrid_command()
-@commands.has_permissions(administrator=True)
-async def unblacklist(ctx,member:discord.Member):
 
-    blacklisted_users.pop(str(member.id),None)
-    save_json(BLACKLIST_FILE,blacklisted_users)
-
-    embed = discord.Embed(
-        title="User Unblacklisted",
-        description=f"{member.mention} can use commands again",
-        color=discord.Color.green()
-    )
-
-    await ctx.send(embed=embed)
-
-# ---------------- REBOOT ---------------- #
-
-@bot.hybrid_command()
-@commands.is_owner()
-async def reboot(ctx):
-
-    embed = discord.Embed(
-        title="Rebooting",
-        description="Bot restarting...",
-        color=discord.Color.orange()
-    )
-
-    await ctx.send(embed=embed)
-
-    os.execv(__file__,["python"]+os.sys.argv)
 # ---------------- UPTIME ---------------- #
-import psutil
-import time
-import datetime
-
-start_time = time.time()
 
 @bot.hybrid_command(name="uptime")
 async def uptime(ctx):
@@ -428,108 +310,96 @@ async def uptime(ctx):
     system_uptime = str(datetime.timedelta(seconds=system_uptime_seconds))
 
     embed = discord.Embed(
-        title="Uptime Information",
-        color=discord.Color.dark_teal()
+    title="Uptime Information",
+    color=discord.Color.dark_teal()
     )
 
     embed.description = (
-        f"**I was last rebooted <t:{bot_reboot_time}:R>.**\n\n"
-        f"**Bot Uptime**\n"
-        f"{bot_uptime}\n"
-        f"• <t:{bot_reboot_time}:f>\n\n"
-        f"**System Uptime**\n"
-        f"{system_uptime}\n"
-        f"• <t:{system_boot}:f>"
+    f"**I was last rebooted <t:{bot_reboot_time}:R>.**\n\n"
+    f"**Bot Uptime**\n{bot_uptime}\n"
+    f"• <t:{bot_reboot_time}:f>\n\n"
+    f"**System Uptime**\n{system_uptime}\n"
+    f"• <t:{system_boot}:f>"
     )
 
     await ctx.reply(embed=embed)
-    # ---------------- CHOOSE ---------------- #
+
+
+# ---------------- AVATAR ---------------- #
+
 @bot.hybrid_command()
-async def choose(ctx, *, options: str):
-
-    choices = [c.strip() for c in options.split(",") if c.strip()]
-
-    if len(choices) < 2:
-        await ctx.reply("Provide choices separated by commas.\nExample: `.choose pizza, burger, pasta`")
-        return
-
-    choice = random.choice(choices)
-
-    embed = discord.Embed(
-        title="Otis Khan Decision Engine",
-        description=f"I choose **{choice}**",
-        color=discord.Color.blurple()
-    )
-
-    embed.add_field(
-        name="Choices",
-        value=", ".join(choices),
-        inline=False
-    )
-
-    await ctx.reply(embed=embed)
-
-HOST_ROLE = 1481903901656481812  # hoster role (whitelisted)
-
-@bot.hybrid_command(name="roledrop")
-@commands.has_role(HOST_ROLE)
-async def roledrop(ctx, role: discord.Role):
-
-    # Prevent dropping the hoster role
-    if role.id == HOST_ROLE:
-        await ctx.reply("This role cannot be dropped.")
-        return
-
-    embed = discord.Embed(
-        title="Role Drop",
-        description=f"Reply to this message to claim {role.mention}",
-        color=discord.Color.gold()
-    )
-
-    msg = await ctx.send("@everyone", embed=embed)
-
-    def check(m):
-        return (
-            m.reference
-            and m.reference.message_id == msg.id
-            and m.author != bot.user
-        )
-
-    while True:
-        try:
-            reply = await bot.wait_for("message", timeout=120, check=check)
-
-            await reply.author.add_roles(role)
-
-            await reply.reply(
-                embed=discord.Embed(
-                    description=f"You received {role.mention}",
-                    color=discord.Color.green()
-                )
-            )
-
-        except:
-            break
-
-
-
-
-
-@bot.hybrid_command(name="avatar")
-async def avatar(ctx, member: discord.Member = None):
+async def avatar(ctx,member:discord.Member=None):
 
     member = member or ctx.author
 
     embed = discord.Embed(
-        title=f"{member.name}'s Avatar",
-        color=discord.Color.blurple()
+    title=f"{member.name}'s Avatar",
+    color=discord.Color.blurple()
     )
 
     embed.set_image(url=member.display_avatar.url)
 
+    await ctx.reply(embed=embed)
+
+
+# ---------------- SAY ---------------- #
+
+@bot.hybrid_command()
+@commands.has_permissions(manage_messages=True)
+async def say(ctx,*,message:str):
+
+    await ctx.message.delete()
+
+    channel = bot.get_channel(GENERAL_CHANNEL)
+
+    if channel:
+        await channel.send(message)
+
+@bot.hybrid_command(name="roleinfo")
+async def roleinfo(ctx, role: discord.Role):
+
+    embed = discord.Embed(
+        title=f"Role Info - {role.name}",
+        color=role.color if role.color != discord.Color.default() else discord.Color.blurple()
+    )
+
+    embed.add_field(name="Role Name", value=role.name, inline=True)
+    embed.add_field(name="Role ID", value=role.id, inline=True)
+    embed.add_field(name="Members", value=len(role.members), inline=True)
+
     embed.add_field(
-        name="Download",
-        value=f"[Click Here]({member.display_avatar.url})",
+        name="Created On",
+        value=role.created_at.strftime("%d %B %Y"),
+        inline=False
+    )
+
+    embed.set_footer(text=f"Requested by {ctx.author}")
+
+    await ctx.reply(embed=embed)
+
+@bot.hybrid_command(name="serverinfo")
+async def serverinfo(ctx):
+
+    guild = ctx.guild
+
+    embed = discord.Embed(
+        title=f"{guild.name} Server Info",
+        color=discord.Color.gold()
+    )
+
+    embed.set_thumbnail(url=guild.icon.url if guild.icon else None)
+
+    embed.add_field(name="Server Name", value=guild.name, inline=True)
+    embed.add_field(name="Server ID", value=guild.id, inline=True)
+    embed.add_field(name="Owner", value=guild.owner, inline=True)
+
+    embed.add_field(name="Members", value=guild.member_count, inline=True)
+    embed.add_field(name="Roles", value=len(guild.roles), inline=True)
+    embed.add_field(name="Channels", value=len(guild.channels), inline=True)
+
+    embed.add_field(
+        name="Created On",
+        value=guild.created_at.strftime("%d %B %Y"),
         inline=False
     )
 
@@ -538,74 +408,4 @@ async def avatar(ctx, member: discord.Member = None):
     await ctx.reply(embed=embed)
 
 
-GENERAL_CHANNEL = 1469526304738119940  # replace with your general channel ID
-
-@bot.hybrid_command(name="say")
-@commands.has_permissions(manage_messages=True)
-async def say(ctx, *, message: str):
-
-    await ctx.message.delete()
-
-    channel = bot.get_channel(GENERAL_CHANNEL)
-
-    if channel:
-        await channel.send(message)
-@autoreaction.command(name="add")
-@commands.has_permissions(manage_guild=True)
-async def autoreaction_add(ctx, phrase: str, emoji: str):
-
-    autoreactions[phrase.lower()] = emoji
-    save_json(AUTOREACT_FILE, autoreactions)
-
-    embed = discord.Embed(
-        title="Autoreaction Added",
-        description=f"Phrase: `{phrase}`\nEmoji: {emoji}",
-        color=discord.Color.green()
-    )
-
-    await ctx.reply(embed=embed)
-@autoreaction.command(name="remove")
-@commands.has_permissions(manage_guild=True)
-async def autoreaction_remove(ctx, phrase: str):
-
-    if phrase.lower() in autoreactions:
-        autoreactions.pop(phrase.lower())
-        save_json(AUTOREACT_FILE, autoreactions)
-
-        embed = discord.Embed(
-            title="Autoreaction Removed",
-            description=f"Phrase `{phrase}` removed.",
-            color=discord.Color.red()
-        )
-
-        await ctx.reply(embed=embed)
-
-    else:
-        await ctx.reply("Phrase not found.")
-@autoreaction.command(name="list")
-async def autoreaction_list(ctx):
-
-    if not autoreactions:
-        return await ctx.reply("No autoreactions set.")
-
-    desc = ""
-
-    for phrase, emoji in autoreactions.items():
-        desc += f"`{phrase}` → {emoji}\n"
-
-    embed = discord.Embed(
-        title="Autoreaction List",
-        description=desc,
-        color=discord.Color.blurple()
-    )
-
-    await ctx.reply(embed=embed)
-for phrase, emoji in autoreactions.items():
-    if phrase in message.content.lower():
-        try:
-            await message.add_reaction(emoji)
-        except:
-            pass
-
 bot.run(TOKEN)
-
