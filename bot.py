@@ -411,7 +411,28 @@ async def ship(ctx, user1: discord.Member, user2: discord.Member):
     embed.set_image(url=user2.display_avatar.url)
 
     await ctx.send(embed=embed)
+@bot.command()
+async def wrongchannel(ctx):
+    # Only you can use this command
+    if ctx.author.id != 1378768035187527795:
+        return await ctx.send("❌ You cannot use this command!")
 
+    # Make sure the command is a reply
+    if not ctx.message.reference:
+        return await ctx.send("⚠️ You must reply to a message to use this command!")
+
+    # Get the message you replied to
+    replied_message = ctx.message.reference.resolved
+    if not replied_message:
+        return await ctx.send("⚠️ Could not find the message you replied to!")
+
+    # Delete your command message
+    await ctx.message.delete()
+
+    # Send the embed as a reply
+    embed = discord.Embed(color=0x0d1117)
+    embed.set_image(url="https://media.discordapp.net/attachments/1469526304398377253/1483397708042604587/Screenshot_20260317-150154.Photos.png?ex=69ba7145&is=69b91fc5&hm=1b5c666decb7d8a2321e97f3097a8b9a8ea580df05c0f64ee1e83345a0222f3c&=&format=webp&quality=lossless&width=612&height=656")  # Replace with your image URL
+    await replied_message.reply(embed=embed)
 # ---------------- RUN ---------------- #
 
 bot.run(TOKEN)
