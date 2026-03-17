@@ -4,3 +4,4 @@ pytz
 aiohttp
 psutil
 pillow
+pillow requests
