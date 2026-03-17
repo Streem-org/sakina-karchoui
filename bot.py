@@ -9,6 +9,9 @@ import pytz
 import os
 import asyncio
 from collections import defaultdict
+from PIL import Image, ImageDraw    
+import requests
+from io import BytesIO
 
 TOKEN = os.getenv("TOKEN")
 PREFIX = "."
@@ -56,11 +59,6 @@ eightball_responses = [
 
 # ---------------- BOT ---------------- #
 
-ALLOWED_SERVERS = [
-    1469526303148609720,
-    1386245608184090795,
-    1479551809080135763
-]
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -75,21 +73,12 @@ bot = commands.Bot(
 # ---------------- READY ---------------- #
 
 @bot.event
-async def on_guild_join(guild):
-    if guild.id not in ALLOWED_SERVERS:
-        await guild.leave()
-
-@bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
 
-    for guild in bot.guilds:
-        if guild.id not in ALLOWED_SERVERS:
-            await guild.leave()
-
     await bot.change_presence(
         status=discord.Status.dnd,
-        activity=discord.Game("Training again")
+        activity=discord.Game("Karchaoui Dominance")
     )
 
     weekly_reset.start()
@@ -355,15 +344,6 @@ async def help_command(ctx):
     )
 
     embed.add_field(
-        name="📊 Server",
-        value="""
-`.wk` – Weekly leaderboard  
-`.wk @user` – Weekly stats  
-""",
-        inline=False
-    )
-
-    embed.add_field(
         name="🔒 Moderation",
         value="""
 `.blacklist @user` – Block user  
@@ -379,6 +359,38 @@ async def help_command(ctx):
     )
 
     embed.set_thumbnail(url=ctx.bot.user.display_avatar.url)
+
+    await ctx.send(embed=embed)
+
+@bot.hybrid_command(name="ship")
+async def ship(ctx, user1: discord.Member, user2: discord.Member):
+
+    percent = random.randint(0, 100)
+
+    # name merge
+    ship_name = user1.name[:len(user1.name)//2] + user2.name[len(user2.name)//2:]
+
+    # emoji
+    if percent >= 80:
+        emoji = "😍"
+    elif percent >= 60:
+        emoji = "😊"
+    elif percent >= 40:
+        emoji = "😐"
+    else:
+        emoji = "💀"
+
+    # bar
+    bar = "█" * (percent // 10) + "░" * (10 - percent // 10)
+
+    embed = discord.Embed(
+        title=ship_name.lower(),
+        description=f"`{bar}` **{percent}%**\n{emoji}",
+        color=0x2b2d31
+    )
+
+    embed.set_thumbnail(url=user1.display_avatar.url)
+    embed.set_image(url=user2.display_avatar.url)
 
     await ctx.send(embed=embed)
 
