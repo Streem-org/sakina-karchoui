@@ -51,6 +51,16 @@ afk_cooldown = {}
 afk_mentions = {}
 
 start_time = time.time()
+last_reboot = time.time()
+
+def format_time(seconds):
+    days = int(seconds // 86400)
+    hours = int((seconds % 86400) // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+
+    return f"{days} days, {hours} hours, {minutes} minutes, {secs} seconds"
+
 
 eightball_responses = [
     "Yes",
@@ -234,58 +244,31 @@ async def say(ctx, *, message: str):
     await ctx.send(message)
 
 # ---------------- UPTIME ----------------
-
-@bot.hybrid_command(name="uptime")
+@bot.command()
 async def uptime(ctx):
-    now = int(time.time())
-
-    bot_uptime_seconds = int(now - start_time)
-    system_boot = int(psutil.boot_time())
-    system_uptime_seconds = now - system_boot
-
-    bot_time = str(datetime.timedelta(seconds=bot_uptime_seconds))
-    system_time = str(datetime.timedelta(seconds=system_uptime_seconds))
-
-    cpu = psutil.cpu_percent(interval=1)
-    ram = psutil.virtual_memory().percent
-    ping = round(bot.latency * 1000)
+    bot_uptime = time.time() - start_time
+    system_uptime = time.time() - psutil.boot_time()
 
     embed = discord.Embed(
-        description=(
-            f"```ansi\n"
-            f"\x1b[1;37mSYSTEM STATUS\x1b[0m\n\n"
-            f"\x1b[1;30mBot Uptime   ::\x1b[0m {bot_time}\n"
-            f"\x1b[1;30mSystem Uptime::\x1b[0m {system_time}\n"
-            f"\x1b[1;30mPing         ::\x1b[0m {ping} ms\n"
-            f"\x1b[1;30mCPU Usage    ::\x1b[0m {cpu}%\n"
-            f"\x1b[1;30mRAM Usage    ::\x1b[0m {ram}%\n"
-            f"\n\x1b[1;37mSTATUS: OPERATIONAL\x1b[0m"
-            f"\n```"
-        ),
-        color=0x0d1117
+        title="Uptime Information",
+        color=discord.Color.dark_grey()
     )
 
-    embed.set_footer(
-        text=f"{ctx.author}",
-        icon_url=ctx.author.display_avatar.url
+    embed.add_field(
+        name="Bot Uptime",
+        value=f"{format_time(bot_uptime)}\n• <t:{int(start_time)}:F>",
+        inline=False
     )
 
-    await ctx.reply(embed=embed)
-
-# ---------------- AVATAR ----------------
-
-@bot.hybrid_command(name="avatar")
-async def avatar(ctx, member: discord.Member = None):
-    member = member or ctx.author
-
-    embed = discord.Embed(
-        title=f"{member.name}'s Avatar",
-        color=discord.Color.blurple()
+    embed.add_field(
+        name="System Uptime",
+        value=f"{format_time(system_uptime)}\n• <t:{int(psutil.boot_time())}:F>",
+        inline=False
     )
-    embed.set_image(url=member.display_avatar.url)
 
-    await ctx.reply(embed=embed)
+    embed.set_footer(text=f"Requested by {ctx.author}")
 
+    await ctx.send(embed=embed)
 # ---------------- AUTOREACTION ----------------
 
 @bot.hybrid_group(name="autoreaction", invoke_without_command=True)
