@@ -12,6 +12,8 @@ from collections import defaultdict
 from PIL import Image, ImageDraw    
 import requests
 from io import BytesIO
+import sys
+from discord.ui import View, Button
 
 TOKEN = os.getenv("TOKEN")
 PREFIX = "."
@@ -36,6 +38,8 @@ def save_json(file, data):
     with open(file, "w") as f:
         json.dump(data, f, indent=4)
 
+        
+
 times = load_json(TIME_FILE)
 weekly_data = load_json(WEEKLY_FILE)
 blacklisted_users = load_json(BLACKLIST_FILE)
@@ -44,6 +48,7 @@ autoreactions = load_json(AUTOREACT_FILE)
 weekly_messages = defaultdict(int)
 afk_users = {}
 afk_cooldown = {}
+afk_mentions = {}
 
 start_time = time.time()
 
@@ -75,28 +80,12 @@ async def on_ready():
     print(f"Logged in as {bot.user}")
 
     await bot.change_presence(
-        status=discord.Status.dnd,
+        status=discord.Status.idle,
         activity=discord.Game("Karchaoui Dominance")
     )
-
+    await bot.tree.sync()
+    print("Slash commands synced.")
     weekly_reset.start()
-    bot.loop.create_task(terminal_commands())
-
-# ---------------- TERMINAL ---------------- #
-
-async def terminal_commands():
-    await bot.wait_until_ready()
-    while True:
-        cmd = await asyncio.to_thread(input)
-
-        if cmd.startswith("say"):
-            parts = cmd.split(" ")
-            channel_id = int(parts[1])
-            message = " ".join(parts[2:])
-            channel = bot.get_channel(channel_id)
-
-            if channel:
-                await channel.send(message)
 
 # ---------------- WEEKLY RESET ---------------- #
 
@@ -106,6 +95,26 @@ async def weekly_reset():
     weekly_data = {}
     weekly_messages.clear()
     save_json(WEEKLY_FILE, weekly_data)
+
+# ---------------- AFK VIEW ---------------- #
+
+class AFKReturnView(View):
+    def __init__(self, mentions):
+        super().__init__(timeout=60)
+        self.mentions = mentions
+
+    @discord.ui.button(label="Show Pings", style=discord.ButtonStyle.green)
+    async def show_pings(self, interaction: discord.Interaction, button: Button):
+        if not self.mentions:
+            await interaction.response.send_message("No one mentioned you while AFK.", ephemeral=True)
+            return
+
+        text = "\n".join(self.mentions[:10])
+        await interaction.response.send_message(f"📩 Mentions while AFK:\n{text}", ephemeral=True)
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.red)
+    async def close(self, interaction: discord.Interaction, button: Button):
+        await interaction.message.delete()
 
 # ---------------- MESSAGE EVENT ---------------- #
 
@@ -127,29 +136,38 @@ async def on_message(message):
         now = time.time()
 
         if message.author.id not in afk_cooldown or now - afk_cooldown[message.author.id] > 5:
-            data = afk_users.pop(message.author.id)
+            afk_users.pop(message.author.id)
             afk_cooldown[message.author.id] = now
 
-            duration = int(now - data["since"])
-            duration_str = str(datetime.timedelta(seconds=duration))
+            mentions = afk_mentions.pop(message.author.id, [])
 
             embed = discord.Embed(
-                description=f"👋 Welcome back {message.author.mention}\nYou were AFK for **{duration_str}**",
-                color=discord.Color.green()
+                description="**Your AFK has been removed!**",
+                color=message.author.color if message.author.color != discord.Color.default() else 0x2b2d31
             )
-            await message.channel.send(embed=embed)
+
+            view = AFKReturnView(mentions)
+            await message.channel.send(embed=embed, view=view)
 
     # AFK MENTION
     for user in message.mentions:
-        if user.id in afk_users:
+        if user.id in afk_users and user != message.author:
             data = afk_users[user.id]
             duration = int(time.time() - data["since"])
             duration_str = str(datetime.timedelta(seconds=duration))
 
+            afk_mentions.setdefault(user.id, [])
+            afk_mentions[user.id].append(f"{message.author} in {message.channel.mention}")
+
             embed = discord.Embed(
-                description=f"💤 {user.mention} is AFK\n**Reason:** {data['reason']}\n**Since:** {duration_str} ago",
-                color=discord.Color.orange()
+                description=(
+                    f"{user.mention} is currently AFK ({duration_str} ago)\n\n"
+                    f"**Message:**\n{data['reason']}"
+                ),
+                color=user.color if hasattr(user, "color") and user.color != discord.Color.default() else 0x2b2d31
             )
+
+            embed.set_thumbnail(url=user.display_avatar.url)
             await message.channel.send(embed=embed)
 
     # AUTOREACTION
@@ -171,14 +189,25 @@ async def afk(ctx, *, reason="AFK"):
         "since": int(time.time())
     }
 
+    afk_mentions[ctx.author.id] = []
+
     embed = discord.Embed(
-        description=f"💤 {ctx.author.mention} is now AFK\n**Reason:** {reason}",
-        color=discord.Color.orange()
+        description=(
+            f"**You're now AFK!**\n\n"
+            f"**Message:**\n"
+            f"• {reason}"
+        ),
+        color=ctx.author.color if ctx.author.color != discord.Color.default() else 0x2b2d31
+    )
+
+    embed.set_author(
+        name=str(ctx.author),
+        icon_url=ctx.author.display_avatar.url
     )
 
     await ctx.send(embed=embed)
 
-# ---------------- 8BALL ---------------- #
+# ---------------- 8BALL ----------------
 
 @bot.hybrid_command(name="8ball")
 async def eightball(ctx, *, question):
@@ -193,15 +222,19 @@ async def eightball(ctx, *, question):
 
     await ctx.send(embed=embed)
 
-# ---------------- SAY ---------------- #
+# ---------------- SAY ----------------
 
 @bot.hybrid_command(name="say")
 @commands.has_permissions(manage_messages=True)
 async def say(ctx, *, message: str):
-    await ctx.message.delete()
+    try:
+        await ctx.message.delete()
+    except:
+        pass
     await ctx.send(message)
 
-# ---------------- UPTIME ---------------- #
+# ---------------- UPTIME ----------------
+
 @bot.hybrid_command(name="uptime")
 async def uptime(ctx):
     now = int(time.time())
@@ -229,7 +262,7 @@ async def uptime(ctx):
             f"\n\x1b[1;37mSTATUS: OPERATIONAL\x1b[0m"
             f"\n```"
         ),
-        color=0x0d1117  # super dark
+        color=0x0d1117
     )
 
     embed.set_footer(
@@ -239,7 +272,7 @@ async def uptime(ctx):
 
     await ctx.reply(embed=embed)
 
-# ---------------- AVATAR ---------------- #
+# ---------------- AVATAR ----------------
 
 @bot.hybrid_command(name="avatar")
 async def avatar(ctx, member: discord.Member = None):
@@ -253,7 +286,7 @@ async def avatar(ctx, member: discord.Member = None):
 
     await ctx.reply(embed=embed)
 
-# ---------------- AUTOREACTION ---------------- #
+# ---------------- AUTOREACTION ----------------
 
 @bot.hybrid_group(name="autoreaction", invoke_without_command=True)
 async def autoreaction(ctx):
@@ -273,14 +306,12 @@ async def autoreaction(ctx):
 async def autoreaction_add(ctx, phrase: str, emoji: str):
     autoreactions[phrase.lower()] = emoji
     save_json(AUTOREACT_FILE, autoreactions)
-
     await ctx.reply(f"Added: {phrase} → {emoji}")
 
 @autoreaction.command(name="remove")
 async def autoreaction_remove(ctx, phrase: str):
     autoreactions.pop(phrase.lower(), None)
     save_json(AUTOREACT_FILE, autoreactions)
-
     await ctx.reply("Removed.")
 
 @autoreaction.command(name="list")
@@ -288,9 +319,7 @@ async def autoreaction_list(ctx):
     if not autoreactions:
         return await ctx.reply("No autoreactions set.")
 
-    text = ""
-    for phrase, emoji in autoreactions.items():
-        text += f"{phrase} → {emoji}\n"
+    text = "\n".join([f"{p} → {e}" for p, e in autoreactions.items()])
 
     embed = discord.Embed(
         title="Autoreaction List",
@@ -300,7 +329,7 @@ async def autoreaction_list(ctx):
 
     await ctx.reply(embed=embed)
 
-# ---------------- TIME SYSTEM ---------------- #
+# ---------------- TIME SYSTEM ----------------
 
 @bot.hybrid_group(name="time", invoke_without_command=True)
 async def time_cmd(ctx, member: discord.Member = None):
@@ -331,9 +360,11 @@ async def time_set(ctx, *, timezone: str):
     save_json(TIME_FILE, times)
 
     await ctx.send(f"🌍 Timezone set to {timezone}")
+
+# ---------------- HELP ----------------
+
 @bot.hybrid_command(name="help")
 async def help_command(ctx):
-
     embed = discord.Embed(
         title="⚡ Sakina Karchaoui Command Panel",
         description="**Prefix:** `.` | Slash commands also supported\n\nElegant. Fast. Unstoppable ⚡",
@@ -343,11 +374,10 @@ async def help_command(ctx):
     embed.add_field(
         name="🛠️ Utility",
         value="""
-`.avatar` – View user avatar  
-`.uptime` – Bot uptime  
-`.time` – Check time  
-`.time set <timezone>` – Set timezone  
-`.afk <reason>` – Enable AFK  
+.avatar
+.uptime
+.time
+.time set <timezone>
 """,
         inline=False
     )
@@ -355,8 +385,8 @@ async def help_command(ctx):
     embed.add_field(
         name="🎮 Fun",
         value="""
-`.8ball <question>` – Ask the magic ball  
-`.ship @user @user` – Check compatibility  
+.8ball <question>
+.ship @user @user
 """,
         inline=False
     )
@@ -364,9 +394,7 @@ async def help_command(ctx):
     embed.add_field(
         name="🔒 Moderation",
         value="""
-`.blacklist @user` – Block user  
-`.unblacklist @user` – Remove blacklist  
-`.reboot` – Restart bot  
+.say <message>
 """,
         inline=False
     )
@@ -380,15 +408,14 @@ async def help_command(ctx):
 
     await ctx.send(embed=embed)
 
+# ---------------- SHIP ----------------
+
 @bot.hybrid_command(name="ship")
 async def ship(ctx, user1: discord.Member, user2: discord.Member):
-
     percent = random.randint(0, 100)
 
-    # name merge
     ship_name = user1.name[:len(user1.name)//2] + user2.name[len(user2.name)//2:]
 
-    # emoji
     if percent >= 80:
         emoji = "😍"
     elif percent >= 60:
@@ -398,7 +425,6 @@ async def ship(ctx, user1: discord.Member, user2: discord.Member):
     else:
         emoji = "💀"
 
-    # bar
     bar = "█" * (percent // 10) + "░" * (10 - percent // 10)
 
     embed = discord.Embed(
@@ -411,28 +437,57 @@ async def ship(ctx, user1: discord.Member, user2: discord.Member):
     embed.set_image(url=user2.display_avatar.url)
 
     await ctx.send(embed=embed)
-@bot.command()
-async def wrongchannel(ctx):
-    # Only you can use this command
-    if ctx.author.id != 1378768035187527795:
-        return await ctx.send("❌ You cannot use this command!")
 
-    # Make sure the command is a reply
-    if not ctx.message.reference:
-        return await ctx.send("⚠️ You must reply to a message to use this command!")
+    # ---------------- PING ---------------- #
+@bot.hybrid_command(name="ping")
+async def ping(ctx):
+    # WebSocket latency
+    ws_latency = round(bot.latency * 1000)
 
-    # Get the message you replied to
-    replied_message = ctx.message.reference.resolved
-    if not replied_message:
-        return await ctx.send("⚠️ Could not find the message you replied to!")
+    # Message send latency
+    start = time.perf_counter()
+    msg = await ctx.reply("🏓 Pong...")
+    end = time.perf_counter()
+    msg_latency = round((end - start) * 1000)
 
-    # Delete your command message
-    await ctx.message.delete()
+    # Status logic
+    def get_status(ms):
+        if ms < 80:
+            return "🟢 Excellent"
+        elif ms < 150:
+            return "🟢 Good"
+        elif ms < 250:
+            return "🟡 Alright"
+        elif ms < 400:
+            return "🟠 Bad"
+        else:
+            return "🔴 Very Bad"
 
-    # Send the embed as a reply
-    embed = discord.Embed(color=0x0d1117)
-    embed.set_image(url="https://media.discordapp.net/attachments/1469526304398377253/1483397708042604587/Screenshot_20260317-150154.Photos.png?ex=69ba7145&is=69b91fc5&hm=1b5c666decb7d8a2321e97f3097a8b9a8ea580df05c0f64ee1e83345a0222f3c&=&format=webp&quality=lossless&width=612&height=656")  # Replace with your image URL
-    await replied_message.reply(embed=embed)
-# ---------------- RUN ---------------- #
+    ws_status = get_status(ws_latency)
+    msg_status = get_status(msg_latency)
 
+    embed = discord.Embed(
+        title="🏓 Pong!",
+        color=0x2b2d31
+    )
+
+    embed.add_field(
+        name="Discord WS",
+        value=f"{ws_status}\n`{ws_latency} ms`",
+        inline=False
+    )
+
+    embed.add_field(
+        name="Message Send",
+        value=f"{msg_status}\n`{msg_latency} ms`",
+        inline=False
+    )
+
+    embed.set_footer(
+        text="Scale: Excellent | Good | Alright | Bad | Very Bad"
+    )
+
+    await msg.edit(content=None, embed=embed)
+
+    
 bot.run(TOKEN)
