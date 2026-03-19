@@ -194,12 +194,18 @@ async def on_message(message):
 
 @bot.hybrid_command()
 async def afk(ctx, *, reason="AFK"):
-    afk_users[ctx.author.id] = {
+    guild_id = ctx.guild.id
+    user_id = ctx.author.id
+
+    afk_users.setdefault(guild_id, {})
+    afk_mentions.setdefault(guild_id, {})
+
+    afk_users[guild_id][user_id] = {
         "reason": reason,
         "since": int(time.time())
     }
 
-    afk_mentions[ctx.author.id] = []
+    afk_mentions[guild_id][user_id] = []
 
     embed = discord.Embed(
         description=(
@@ -269,6 +275,7 @@ async def uptime(ctx):
     embed.set_footer(text=f"Requested by {ctx.author}")
 
     await ctx.send(embed=embed)
+
 # ---------------- AUTOREACTION ----------------
 
 @bot.hybrid_group(name="autoreaction", invoke_without_command=True)
@@ -287,22 +294,33 @@ async def autoreaction(ctx):
 @autoreaction.command(name="add")
 @commands.has_permissions(manage_guild=True)
 async def autoreaction_add(ctx, phrase: str, emoji: str):
-    autoreactions[phrase.lower()] = emoji
+    guild_id = str(ctx.guild.id)
+
+    autoreactions.setdefault(guild_id, {})
+    autoreactions[guild_id][phrase.lower()] = emoji
+
     save_json(AUTOREACT_FILE, autoreactions)
     await ctx.reply(f"Added: {phrase} → {emoji}")
 
 @autoreaction.command(name="remove")
 async def autoreaction_remove(ctx, phrase: str):
-    autoreactions.pop(phrase.lower(), None)
-    save_json(AUTOREACT_FILE, autoreactions)
-    await ctx.reply("Removed.")
+    guild_id = str(ctx.guild.id)
+
+    if guild_id in autoreactions and phrase.lower() in autoreactions[guild_id]:
+        autoreactions[guild_id].pop(phrase.lower())
+        save_json(AUTOREACT_FILE, autoreactions)
+        await ctx.reply("Removed.")
+    else:
+        await ctx.reply("⚠️ Not found.")
 
 @autoreaction.command(name="list")
 async def autoreaction_list(ctx):
-    if not autoreactions:
+    guild_id = str(ctx.guild.id)
+
+    if guild_id not in autoreactions or not autoreactions[guild_id]:
         return await ctx.reply("No autoreactions set.")
 
-    text = "\n".join([f"{p} → {e}" for p, e in autoreactions.items()])
+    text = "\n".join([f"{p} → {e}" for p, e in autoreactions[guild_id].items()])
 
     embed = discord.Embed(
         title="Autoreaction List",
@@ -311,7 +329,6 @@ async def autoreaction_list(ctx):
     )
 
     await ctx.reply(embed=embed)
-
 # ---------------- TIME SYSTEM ----------------
 
 @bot.hybrid_group(name="time", invoke_without_command=True)
@@ -350,17 +367,17 @@ async def time_set(ctx, *, timezone: str):
 async def help_command(ctx):
     embed = discord.Embed(
         title="⚡ Sakina Karchaoui Command Panel",
-        description="**Prefix:** `.` | Slash commands also supported\n\nElegant. Fast. Unstoppable ⚡",
+        description="**Prefix:** `.` | Slash commands also supported",
         color=0x1f6feb
     )
 
     embed.add_field(
         name="🛠️ Utility",
         value="""
-.avatar
-.uptime
-.time
-.time set <timezone>
+`.avatar` - View avatar of an user
+`.uptime` - View uptime of bot
+`.time` - View time of an user
+`.time set <timezone>` - Set your timezone
 """,
         inline=False
     )
@@ -368,8 +385,8 @@ async def help_command(ctx):
     embed.add_field(
         name="🎮 Fun",
         value="""
-.8ball <question>
-.ship @user @user
+`.8ball <question>` - Ask some questions
+`.ship @user @user` - Create some couples
 """,
         inline=False
     )
@@ -377,7 +394,8 @@ async def help_command(ctx):
     embed.add_field(
         name="🔒 Moderation",
         value="""
-.say <message>
+`.say <message>` - Makes the admin send messages
+`.dm` - Bot dms an user
 """,
         inline=False
     )
@@ -473,31 +491,28 @@ async def ping(ctx):
     await msg.edit(content=None, embed=embed)
 
     # ---------------- AVATAR ---------------- #
+# ---------------- AVATAR ---------------- #
 @bot.hybrid_command(name="avatar")
 async def avatar(ctx, member: discord.Member = None):
     member = member or ctx.author
 
     embed = discord.Embed(
-        description=(
-            f"```ansi\n"
-            f"\x1b[1;37mIDENTITY SCAN\x1b[0m\n\n"
-            f"\x1b[1;30mUser   ::\x1b[0m {member}\n"
-            f"\x1b[1;30mID     ::\x1b[0m {member.id}\n"
-            f"\n\x1b[1;37mSTATUS: VISUAL ACQUIRED\x1b[0m"
-            f"\n```"
-        ),
-        color=member.color if member.color != discord.Color.default() else 0x0d1117
+        color=member.color if member.color != discord.Color.default() else 0x2b2d31
     )
 
+    # Title (Nickname)
+    embed.title = f"Nickname: {member.display_name}"
+
+    # Subtitle
+    embed.description = f"**Avatar of {member.name}**"
+
+    # Avatar image
     embed.set_image(url=member.display_avatar.url)
 
-    embed.set_footer(
-        text=f"Requested by {ctx.author}",
-        icon_url=ctx.author.display_avatar.url
-    )
+    # Footer with ID
+    embed.set_footer(text=f"ID: {member.id}")
 
     await ctx.reply(embed=embed)
-
     # ---------------- REBOOT ---------------- #
 @bot.hybrid_command(name="reboot")
 async def reboot(ctx):
@@ -517,6 +532,20 @@ async def reboot(ctx):
 
     # Restart process
     os.execv(sys.executable, ['python'] + sys.argv)
+# ---------------- DM ---------------- #
+@bot.hybrid_command(name="dm")
+async def dm(ctx, user: discord.User, *, message: str):
 
+    # Dev only
+    if ctx.author.id != 1378768035187527795:
+        return await ctx.reply("❌ You cannot use this command.")
+
+    try:
+        await user.send(message)
+
+        await ctx.reply(f"📩 Sent to {user.mention}")
+
+    except:
+        await ctx.reply("❌ Couldn't send DM (user may have DMs disabled).")
     
 bot.run(TOKEN)
