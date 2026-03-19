@@ -378,6 +378,9 @@ async def help_command(ctx):
 `.uptime` - View uptime of bot
 `.time` - View time of an user
 `.time set <timezone>` - Set your timezone
+`.serverinfo` - View the server info
+`.memberinfo` - View info about members
+`.roleinfo` - View info about specific role
 """,
         inline=False
     )
@@ -514,23 +517,26 @@ async def avatar(ctx, member: discord.Member = None):
 
     await ctx.reply(embed=embed)
     # ---------------- REBOOT ---------------- #
+# ---------------- REBOOT ---------------- #
 @bot.hybrid_command(name="reboot")
 async def reboot(ctx):
 
-    # Dev only
     if ctx.author.id != 1378768035187527795:
         return await ctx.reply("❌ You cannot use this command.")
 
     embed = discord.Embed(
-        description="```ansi\n\x1b[1;31mSYSTEM RESTART INITIATED...\x1b[0m\n```",
-        color=ctx.author.color if ctx.author.color != discord.Color.default() else 0x0d1117
+        description="**Rebooting...**",
+        color=ctx.author.color if ctx.author.color != discord.Color.default() else 0x2b2d31
+    )
+
+    embed.set_author(
+        name=str(ctx.author),
+        icon_url=ctx.author.display_avatar.url
     )
 
     await ctx.reply(embed=embed)
 
     await bot.close()
-
-    # Restart process
     os.execv(sys.executable, ['python'] + sys.argv)
 # ---------------- DM ---------------- #
 @bot.hybrid_command(name="dm")
@@ -547,5 +553,95 @@ async def dm(ctx, user: discord.User, *, message: str):
 
     except:
         await ctx.reply("❌ Couldn't send DM (user may have DMs disabled).")
+
+        # ---------------- CHOOSE ---------------- #
+@bot.hybrid_command(name="choose")
+async def choose(ctx, *, options: str):
+
+    choices = [opt.strip() for opt in options.split(",") if opt.strip()]
+
+    if len(choices) < 2:
+        return await ctx.reply("❌ Give at least 2 options separated by commas.")
+
+    result = random.choice(choices)
+
+    embed = discord.Embed(
+        description=(
+            f"🎲 **Choice Made**\n\n"
+            f"• {result}"
+        ),
+        color=ctx.author.color if ctx.author.color != discord.Color.default() else 0x2b2d31
+    )
+
+    embed.set_author(
+        name=str(ctx.author),
+        icon_url=ctx.author.display_avatar.url
+    )
+
+    await ctx.reply(embed=embed)
+    # ---------------- MEMBER INFO ---------------- #
+@bot.hybrid_command(name="memberinfo")
+async def memberinfo(ctx, member: discord.Member = None):
+    member = member or ctx.author
+
+    embed = discord.Embed(
+        title=str(member),
+        color=member.color if member.color != discord.Color.default() else 0x2b2d31
+    )
+
+    embed.set_thumbnail(url=member.display_avatar.url)
+
+    embed.add_field(name="ID", value=member.id, inline=False)
+    embed.add_field(name="Joined Server", value=f"<t:{int(member.joined_at.timestamp())}:F>", inline=False)
+    embed.add_field(name="Account Created", value=f"<t:{int(member.created_at.timestamp())}:F>", inline=False)
+
+    roles = [role.mention for role in member.roles if role.name != "@everyone"]
+    embed.add_field(name="Roles", value=", ".join(roles[:10]) if roles else "None", inline=False)
+
+    embed.set_footer(text=f"Nickname: {member.display_name}")
+
+    await ctx.reply(embed=embed)
+    # ---------------- ROLE INFO ---------------- #
+@bot.hybrid_command(name="roleinfo")
+async def roleinfo(ctx, role: discord.Role):
+
+    embed = discord.Embed(
+        title=role.name,
+        color=role.color if role.color != discord.Color.default() else 0x2b2d31
+    )
+
+    embed.add_field(name="ID", value=role.id, inline=False)
+    embed.add_field(name="Members", value=len(role.members), inline=True)
+    embed.add_field(name="Color", value=str(role.color), inline=True)
+    embed.add_field(name="Created", value=f"<t:{int(role.created_at.timestamp())}:F>", inline=False)
+
+    embed.add_field(name="Mentionable", value=role.mentionable, inline=True)
+    embed.add_field(name="Hoisted", value=role.hoist, inline=True)
+
+    embed.set_footer(text=f"Position: {role.position}")
+
+    await ctx.reply(embed=embed)
+    # ---------------- SERVER INFO ---------------- #
+@bot.hybrid_command(name="serverinfo")
+async def serverinfo(ctx):
+    guild = ctx.guild
+
+    embed = discord.Embed(
+        title=guild.name,
+        color=ctx.author.color if ctx.author.color != discord.Color.default() else 0x2b2d31
+    )
+
+    embed.set_thumbnail(url=guild.icon.url if guild.icon else None)
+
+    embed.add_field(name="Owner", value=guild.owner.mention, inline=True)
+    embed.add_field(name="Members", value=guild.member_count, inline=True)
+    embed.add_field(name="Created", value=f"<t:{int(guild.created_at.timestamp())}:F>", inline=False)
+
+    embed.add_field(name="Channels", value=len(guild.channels), inline=True)
+    embed.add_field(name="Roles", value=len(guild.roles), inline=True)
+
+    embed.set_footer(text=f"ID: {guild.id}")
+
+    await ctx.reply(embed=embed)
     
 bot.run(TOKEN)
