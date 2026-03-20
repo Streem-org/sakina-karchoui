@@ -24,9 +24,9 @@ TIME_FILE = "times.json"
 WEEKLY_FILE = "weekly.json"
 BLACKLIST_FILE = "blacklist.json"
 AUTOREACT_FILE = "autoreactions.json"
+DM_LOG_CHANNEL_ID = 1484472574690852985
 
 # ---------------- FILE SYSTEM ---------------- #
-
 def load_json(file):
     try:
         with open(file, "r") as f:
@@ -38,11 +38,11 @@ def save_json(file, data):
     with open(file, "w") as f:
         json.dump(data, f, indent=4)
 
+blacklist = load_json(BLACKLIST_FILE) 
+
         
 
 times = load_json(TIME_FILE)
-weekly_data = load_json(WEEKLY_FILE)
-blacklisted_users = load_json(BLACKLIST_FILE)
 autoreactions = load_json(AUTOREACT_FILE)
 
 weekly_messages = defaultdict(int)
@@ -132,8 +132,8 @@ class AFKReturnView(View):
 async def on_message(message):
     if message.author.bot:
         return
-
-    if str(message.author.id) in blacklisted_users:
+    
+    if str(message.author.id) in blacklist:
         return
 
     # WEEKLY TRACK
@@ -1197,6 +1197,25 @@ async def imgify(ctx, url: str = None):
     )
 
     await ctx.send(embed=embed)
+
+@bot.hybrid_command(name="blacklist")
+@commands.has_permissions(administrator=True)
+async def blacklist_cmd(ctx, user: discord.User):
+
+    blacklist[str(user.id)] = True
+    save_json(BLACKLIST_FILE, blacklist)
+
+    await ctx.send(f"🚫 {user} has been blacklisted.")
+
+
+@bot.hybrid_command(name="unblacklist")
+@commands.has_permissions(administrator=True)
+async def unblacklist_cmd(ctx, user: discord.User):
+
+    blacklist.pop(str(user.id), None)
+    save_json(BLACKLIST_FILE, blacklist)
+
+    await ctx.send(f"✅ {user} has been unblacklisted.")
 
 
 # ---------------- RUN ---------------- #
