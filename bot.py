@@ -562,29 +562,26 @@ async def time_compare(ctx, member: discord.Member = None):
     )
 
     await ctx.reply(embed=embed)
-    # ---------------- HELP UI ---------------- #
-
-class HelpSelect(discord.ui.Select):
+    # FIRST → CLASS
+class HelpView(discord.ui.View):
     def __init__(self):
-        options = [
+        super().__init__(timeout=None)
+
+    @discord.ui.select(
+        placeholder="Choose a category...",
+        min_values=1,
+        max_values=1,
+        options=[
             discord.SelectOption(label="Utility", emoji="🛠️"),
             discord.SelectOption(label="Fun", emoji="🎮"),
             discord.SelectOption(label="Moderation", emoji="🔒"),
         ]
+    )
+    async def select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
 
-        super().__init__(
-            placeholder="Select a category...",
-            min_values=1,
-            max_values=1,
-            options=options
-        )
+        choice = select.values[0]
 
-    async def callback(self, interaction: discord.Interaction):
-        value = self.values[0]
-
-        color = interaction.user.color if interaction.user.color != discord.Color.default() else 0x2b2d31
-
-        if value == "Utility":
+        if choice == "Utility":
             embed = discord.Embed(
                 title="🛠️ Utility Commands",
                 description="""
@@ -592,105 +589,58 @@ class HelpSelect(discord.ui.Select):
 `.uptime` – Bot uptime  
 `.time` – Check time  
 `.time set` – Set timezone  
-`.time culture` – Cultural time  
-`.time compare` – Compare timezones  
 `.serverinfo` – Server info  
 `.memberinfo` – Member info  
 `.roleinfo` – Role info  
-`.convert` – Currency convert  
+`.time culture` – Culture time  
+`.time compare` – Compare time  
 """,
-                color=color
+                color=0x2b2d31
             )
 
-        elif value == "Fun":
+        elif choice == "Fun":
             embed = discord.Embed(
                 title="🎮 Fun Commands",
                 description="""
 `.8ball` – Ask questions  
 `.ship` – Ship users  
-`.choose` – Choose randomly  
-`.howhorny` – % horny 💀  
+`.choose` – Pick between options  
+`.howhorny` – 💀  
 """,
-                color=color
+                color=0x2b2d31
             )
 
-        elif value == "Moderation":
+        elif choice == "Moderation":
             embed = discord.Embed(
                 title="🔒 Moderation Commands",
                 description="""
 `.say` – Send message  
-`.dm` – DM user  
-`.ev p` – Send evidence  
-`.blacklist` – Blacklist user  
-`.unblacklist` – Remove blacklist  
-`.reboot` – Restart bot  
+`.dm` – DM users  
+`.ev p` – Evidence  
+`.blacklist` – Block  
+`.unblacklist` – Unblock  
+`.reboot` – Restart  
+`.shutdown` – Turn off  
 """,
-                color=color
+                color=0x2b2d31
             )
 
-        await interaction.response.edit_message(embed=embed)
+        await interaction.response.edit_message(embed=embed, view=self)
 
 
-class HelpView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=120)
-        self.add_item(HelpSelect())
-
-# ---------------- HELP ----------------
-
+# SECOND → COMMAND
 @bot.hybrid_command(name="help")
 async def help_command(ctx):
+
     embed = discord.Embed(
         title="⚡ Sakina Karchaoui Command Panel",
-        description="**Prefix:** `.` | Slash commands also supported",
+        description="Select a category below 👇",
         color=0x1f6feb
-    )
-
-    embed.add_field(
-        name="🛠️ Utility",
-        value="""
-`.avatar` - View avatar of an user
-`.uptime` - View uptime of bot
-`.time` - View time of an user
-`.time set <timezone>` - Set your timezone
-`.serverinfo` - View the server info
-`.memberinfo` - View info about members
-`.roleinfo` - View info about specific role
-`.time culture` - View time culture of a region
-`.time compare` - Compare time between to regions
-""",
-        inline=False
-    )
-
-    embed.add_field(
-        name="🎮 Fun",
-        value="""
-`.8ball <question>` - Ask some questions
-`.ship @user @user` - Create some couples
-`.choose` - Seek consultation from sakina
-`.howhorny` - You've been a bad boy
-""",
-        inline=False
-    )
-
-    embed.add_field(
-        name="🔒 Moderation",
-        value="""
-`.say <message>` - Makes the admin send messages
-`.dm` - Admin makes the bot dm an user
-`.ev p` - Makes the staff team add evidences (onlt for the staff of /YILDIZ)
-""",
-        inline=False
-    )
-
-    embed.set_footer(
-        text="Sakina Karchaoui • Advanced Utility Bot",
-        icon_url=ctx.bot.user.display_avatar.url
     )
 
     embed.set_thumbnail(url=ctx.bot.user.display_avatar.url)
 
-    await ctx.send(embed=embed)
+    await ctx.send(embed=embed, view=HelpView())
 
 # ---------------- SHIP ----------------
 
